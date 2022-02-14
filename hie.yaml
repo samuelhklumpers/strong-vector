@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: "./app/Main.hs"
+      component: "strong-vector:exe:type-level-exe"
+
+    - path: "./app/Paths_type_level.hs"
+      component: "strong-vector:exe:type-level-exe"
