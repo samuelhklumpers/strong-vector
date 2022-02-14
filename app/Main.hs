@@ -38,12 +38,18 @@ type family (n :: N) + (m :: N) :: N
 type instance 'Z + m     = m
 type instance ('S n) + m = 'S (n + m)
 
-instance Show (Nat n) where
-    show n = "Nat " ++ show (toInt n)
+(+|) :: Nat n -> Nat m -> Nat (n + m)
+NZ +| n     = n 
+(NS n) +| m = NS (n +| m) 
+
 
 toInt :: Nat n -> Int
 toInt NZ = 0
 toInt (NS n) = 1 + toInt n
+
+instance Show (Nat n) where
+    show n = "Nat " ++ show (toInt n)
+
 
 fromFin :: Fin n -> Nat n
 fromFin (FZ n)   = n
@@ -74,11 +80,10 @@ vMap :: (a -> b) -> Vec a n -> Vec b n
 vMap _ (VN _)     = VN'
 vMap f (VC n x v) = VC n (f x) (vMap f v)
 
-{-
 vConc :: Vec a n -> Vec a m -> Vec a (n + m)
 vConc (VN _) w     = w
-vConc (VC (NS n) x v) w = VC _ x (vConc v w)
--}
+vConc (VC n x v) w = VC (n +| vLen w) x (vConc v w)
+
 
 vLen :: Vec a n -> Nat n
 vLen (VN _) = NZ
