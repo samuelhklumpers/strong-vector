@@ -1,0 +1,49 @@
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+
+%Theorems
+\newtheoremstyle{theoremspace}% name of the style to be used
+{2ex}% measure of space to leave above the theorem. E.g.: 3pt
+{2ex}% measure of space to leave below the theorem. E.g.: 3pt
+{\itshape\setlength\parskip{2ex}}% name of font to use in the body of the theorem
+{}% measure of space to indent
+{\bfseries}% name of head font
+{}% punctuation between head and body
+{1em}% space after theorem head; " " = normal interword space
+{}
+
+\newtheoremstyle{definitionspace}% name of the style to be used
+{2ex}% measure of space to leave above the theorem. E.g.: 3pt
+{4ex}% measure of space to leave below the theorem. E.g.: 3pt
+{\normalfont\setlength\parskip{2ex}}% name of font to use in the body of the theorem
+{}% measure of space to indent
+{\bfseries}% name of head font
+{}% punctuation between head and body
+{1em}% space after theorem head; " " = normal interword space
+{}
+
+\theoremstyle{theoremspace}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{prop}{Prop}
+
+\theoremstyle{definitionspace}
+\newtheorem{exercise}{Exercise}
+
+
+\makeatletter
+\@addtoreset{exercise}{section}
+\makeatother
+
+
+\newcommand{\lemmaautorefname}{Lemma}
+\newcommand{\exerciseautorefname}{Exercise}
+
+
+\newcommand{\mrm}[1]{\mathrm{#1}}
+
+\newcommand{\bN}{\mathbb{N}}
+\newcommand{\bZ}{\mathbb{Z}}

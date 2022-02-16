@@ -1,0 +1,165 @@
+\documentclass{article}
+
+\input{base_macro.tex}
+\input{math_macro.tex}
+
+\usepackage[utf8]{inputenc}
+\usepackage{bussproofs}
+\usepackage{xcolor}
+%\usepackage[style=alphabetic]{biblatex}
+
+\usepackage{newunicodechar}
+%\newunicodechar{→}{$\to$}
+%\newunicodechar{⊥}{$\land$}
+\newunicodechar{⊥}{$\bot$}
+\newunicodechar{∨}{$\lor$}
+\newunicodechar{≡}{$\equiv$}
+\newunicodechar{ℕ}{$\mathbb{N}$}
+
+\newcommand{\rem}[1]{\textcolor{red}{[ #1 ]}}
+
+%\bibliography{refs}
+
+\title{Advanced Functional Programming:\\ Strongly Typed Vector Implementation}
+\author{Your Name\\1234567 \and%
+        Your Name\\9876543 \and%
+        Samuel Klumpers\\6057314}
+
+\begin{document}
+    \maketitle
+
+    \section{Why}
+    Probably essentially a reimplementation of the functionality in vector-sized and numpy,
+    reverse engineering some things of type-combinators, using constraints.
+    All while avoiding the built-in GHC.TypeNats and their coerced axioms.
+
+    The project desires to encode the size of vectors in their type,
+    so that we avoid out of bounds errors or operating on incompatible size vectors.
+
+    \section{Tricks I used and am now forced to explain}
+    \subsection{Singletons}
+    Rather than
+    \rem{should probably use lhs2TeX or so}
+\begin{verbatim} 
+data Vec a = ...
+\end{verbatim}
+we would like our vector type to mention the size $n$ like:
+\begin{verbatim} 
+data Vec n a = ...
+\end{verbatim}
+
+    Because $n$ is a type parameter, $n$ should obviously be a type.
+    Unfortunately \texttt{n :: Int} is not a type (nor should we expect negative lengths).
+    \rem{Let us ignore Nat because that makes it impossible for us to reason about Nats (unless we force our axioms into existence)} 
+    As a result we will construct $n$ ourselves, for this we use the datatype
+\begin{verbatim}
+data N = Z | S N
+\end{verbatim}
+    Here \texttt{Z} encodes 0, while \texttt{S n} encodes $n + 1$.
+
+    Using the \texttt{DataKinds}, we promote data constructors to type constructors.
+    Simply put, \texttt{Z} and \texttt{S} are promoted to the types \texttt{'Z} and \texttt{'S}.
+    Particularly, the only value of \texttt{'Z} is \texttt{Z},
+    while \texttt{'S} takes \texttt{n :: 'n} to \texttt{S n :: 'S 'n}.
+    This is why we refer to these as \textbf{singleton} types.
+
+    \subsection{GADTs}
+    Not all that tricky or confusing, but the generalization turns out to be necessary.
+
+    Our vector type becomes
+\begin{verbatim}
+data Vec n a where
+    VN :: Vec 'Z a 
+    VC :: a -> Vec n a -> Vec ('S n) a
+\end{verbatim}
+    Similar to \texttt{[] :: [a]}, \texttt{VN} represents the empty vector,
+    while \texttt{VC} prepends an element to the vector.
+    
+    Note that \texttt{Vec} is strictly GADT, since the type depends on the constructor.
+    With this we can already define most size-safe binary operators on \texttt{Vec}.
+    
+    To safely index a vector, we need a type for allowed indices.
+    For this we use \texttt{Fin n}, the type representing a set of $n$ elements.
+    If we use shorthand $n = \{0, \dots, n - 1\}$, then the \texttt{FZ :: Fin ('S n)} constructor asserts that $0 \in n$ for any $n \geq 1$,
+    while \texttt{FS :: Fin ('S n) → Fin ('S ('S n))} asserts that if $n \in m$,
+    then $n + 1 \in m + 1$.
+    
+    \subsection{Dependent types}
+    Suppose we wanted an analogue for \texttt{np.full}, and we tried to write down the type:
+\begin{verbatim}
+full :: a -> N -> Vec a n
+\end{verbatim}
+
+    This is not going to work, because $n$ would be unbound, while it should be specified by the \texttt{N} argument. Unfortunately, Haskell is not Agda, so we cannot write something like \texttt{a → (n :: N) → Vec a n}. We will need something to carry $n$ on the type level, so we define
+\begin{verbatim}
+data Nat n where
+    NZ :: Nat 'Z
+    NS :: Nat n -> Nat ('S n)
+\end{verbatim}
+    mirroring \texttt{N}. With this we can define \texttt{full :: a → Nat n → Vec a n},
+    so that the \texttt{Nat n} argument both binds and represents the value $n$. 
+
+    \subsection{Known/representable}
+    Clearly we cannot define a (meaningful) function \texttt{N → Nat n},
+    otherwise we would not have had to introduce \texttt{Nat} in the first place.
+    
+    However, this also obstructs defining \texttt{size :: Fin n → Nat n},
+    as pattern matching \texttt{FZ :: Fin 'n} does not provide a value \texttt{n :: 'n}.
+
+    The common solution, expounded on the master branch, uses class
+\begin{verbatim}
+class Known n where
+    nat :: Nat n
+\end{verbatim}
+    and defines the obvious instances for \texttt{'Z} and \texttt{'S n}.
+    This lets us write \texttt{size = nat}, provided we add the constraint \texttt{size :: Known n => Fin n → Nat n}.
+
+    However, an alternate approach, as on the unknown branch, is to rewrite \texttt{Fin n} so that each constructor \textit{does} provide sufficient information to recover $n$.
+    To me, it is unclear whether we will find a situation that actually forces us to rely on \texttt{Known}.
+
+    \subsection{Constraints}
+    The current implementation of the determinant \texttt{det :: (Known n, Num a) => Vec (Vec a n) n -> a} relies on \texttt{Known n} to provide indices to compute the signs in the sum of the minors (which is somewhat contrived, because it can also be rewritten to not).
+
+    Here, \texttt{det} calls \texttt{minor} on smaller matrices, which also requires \texttt{Known n}.
+    However, \texttt{Known n} cannot be deduced from \texttt{Known ('S n)}, nor can we add an instance \texttt{Known ('S n) => Known n}, as that would be incoherent with respect to the necessary instance \texttt{Known n => Known ('S n)}. 
+
+    We remedy this with the tools provided by the constraints package,
+    which lets us handle instances as values via \texttt{Dict :: a => Dict a}.
+    For example, we could convert instances \texttt{a => b} into entailments as \texttt{a :- b} or equivalently \texttt{Dict a → Dict b}.
+
+    The key to using \texttt{Dict p}, is that when such a value is pattern matched, the instance \texttt{p} is brought into scope.
+    If used correctly, one can bring \texttt{Known n} into scope precisely when it is not deducible from the context,
+    avoiding overlap and incoherence. 
+
+    To deduce \texttt{Known n} from \texttt{Known ('S n)}, we use the lemma
+\begin{verbatim}
+know :: Nat n -> Dict (Known n)
+know NZ = Dict                  -- 'Z is Known by definition.
+know (NS n) = case know n of    -- if n is Known,
+    Dict -> Dict                -- then 'S n is Known.
+\end{verbatim}
+    stating that if we can construct \texttt{Nat n}, then \texttt{n} is also \texttt{Known}.
+    With this, we can prove the intuitive \texttt{Known ('S n) => Known n}
+\begin{verbatim}
+down :: Dict (Known ('S n)) -> Dict (Known n)
+down Dict = step nat where               -- given a Nat ('S n),
+    step :: Nat ('S n) -> Dict (Known n) -- deconstruct to Nat n,
+    step (NS n) = know n                 -- assert that we know n.
+\end{verbatim}
+    Now we can apply \texttt{x \\ (down Dict :: Dict (Known n))}, which evaluates \texttt{x} in the context of \texttt{Known n},
+    while we were only given \texttt{Known ('S n)}.
+
+    \subsection{Type families and operators}
+    Consider vector concatenation \texttt{vConc :: Vec n a -> Vec m a -> Vec k a}.
+    Clearly $k = n + m$, however, there is no $+$ on the type level.
+    We see that $+$ should send two types $n, m$ to a type representing their sum.
+
+    That is, $+$ is a family of types indexed by $n, m$:
+\begin{verbatim}
+type family (n :: N) + (m :: N) :: N
+type instance 'Z + m     = m
+type instance ('S n) + m = 'S (n + m)
+\end{verbatim}
+    The instances represent the usual addition rules in Peano arithmetic.
+    We can now define \texttt{vConc :: Vec a n -> Vec a m -> Vec a (n + m)} in the usual way, while the rules ensure that types like \texttt{Vec (n + m) a} behave nicely with respect to \texttt{VC} and such.
+\end{document}
