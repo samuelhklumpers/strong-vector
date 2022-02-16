@@ -1,112 +1,87 @@
-{-# LANGUAGE LambdaCase, DataKinds, PolyKinds, TypeFamilies, GADTs,
-    ScopedTypeVariables, EmptyCase, UndecidableInstances,
-    FlexibleInstances, TypeApplications, TemplateHaskell,
-    StandaloneKindSignatures, DataKinds, TypeOperators,
-    FlexibleContexts, ConstraintKinds, MultiParamTypeClasses  #-}
-
+{-# LANGUAGE DataKinds, PolyKinds, TypeFamilies, GADTs, ScopedTypeVariables, 
+UndecidableInstances, FlexibleInstances, TypeOperators, FlexibleContexts,
+ConstraintKinds, MultiParamTypeClasses, AllowAmbiguousTypes, RankNTypes #-}
 
 module Main where
 
-import GHC.Exts (Constraint)
-import Data.Constraint
+import Data.Constraint ( (\\), unmapDict, type (:-), Dict(..) )
+import Data.List ( intercalate )
 
 
 data N = Z | S N
 
 data Nat n where
-    NZ :: Nat Z
-    NS :: Nat n -> Nat (S n)
-    
-data Fin n where
-    FZ :: Fin n
-    FS :: Fin n -> Fin (S n)
+    NZ :: Nat 'Z
+    NS :: Nat n -> Nat ('S n)
 
-data Vec a n where
-    VN :: Vec a Z
-    VC :: a -> Vec a n -> Vec a (S n)
+data Fin n where
+    FZ :: Fin ('S n)
+    FS :: Fin ('S n) -> Fin ('S ('S n))
+
+data Vec a n where -- the order of the params makes Vec not a Functor oops
+    VN :: Vec a 'Z
+    VC ::  a -> Vec a n -> Vec a ('S n)
+
+vList :: Vec a n -> [a]
+vList = vFold (flip (:)) []
+
+instance Show a => Show (Vec a n) where
+    show v = "<" ++ intercalate "," (map show $ vList v) ++ ">"
+
 
 type family (n :: N) + (m :: N) :: N
-type instance Z + m     = m
-type instance (S n) + m = S (n + m)
+type instance 'Z + m     = m
+type instance ('S n) + m = 'S (n + m)
 
-{-
-class n <: m
-
-instance Z <: S n
-instance (n <: m) => S n <: S m
--}
-
-class ToNat n where
-    toNat :: Nat n
+(+|) :: Nat n -> Nat m -> Nat (n + m)
+NZ +| n     = n
+(NS n) +| m = NS (n +| m)
 
 
-natVal :: forall n. ToNat n => Nat n
-natVal = toNat :: Nat n
-
-  
-instance ToNat Z where
-    toNat = NZ
-
-instance ToNat n => ToNat (S n) where
-    toNat = NS toNat
-
-{-
-class StrongNat n where
-    strong :: Dict (m <: n) -> Nat m
-
-leqTrans :: Nat x -> Nat y -> Nat z -> Dict (x <: y) -> Dict (y <: z) -> Dict (x <: z)
-leqTrans _ _ NZ _ _                  = undefined
-leqTrans _ NZ _ _ _                  = undefined
-leqTrans NZ _ (NS z) _ _             = Dict
-leqTrans (NS x) (NS y) (NS z) a b    = undefined
-
-down :: Dict (m <: n) -> Dict (StrongNat n) -> Dict (StrongNat m)
-down a b = undefined
--}
-
-instance Show (Nat n) where
-    show n = "Nat " ++ show (toInt n)
- 
 toInt :: Nat n -> Int
 toInt NZ = 0
 toInt (NS n) = 1 + toInt n
 
-fromFin :: ToNat n => Fin n -> Nat n
-fromFin f = natVal
+instance Show (Nat n) where
+    show n = "Nat " ++ show (toInt n)
 
-{-
-finToTup :: ToNat n => Fin (S n) -> (Int, Int)
-finToTup f@FZ   = (0, toInt $ fromFin f)
+fromFin :: forall n. Known ('S n) => Fin ('S n) -> Nat ('S n)
+fromFin FZ     = nat
+fromFin (FS _) = nat \\ (Dict :: Dict (Known ('S ('S n))))
+-- ^ why does this not need a @down@?????
+
+finToTup :: forall n. Known ('S n) => Fin ('S n) -> (Int, Int)
+finToTup f@FZ  = (0, toInt $ fromFin f)
 finToTup (FS f) = (x + 1, y + 1) where
-    (x, y) = finToTup f
+    (x, y) = finToTup f \\ (down Dict :: Dict (Known n))
 
-instance ToNat (S n) => Show (Fin (S n)) where
+instance Known ('S n) => Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
--}
 
 full :: a -> Nat n -> Vec a n
-full a NZ     = VN
+full _ NZ     = VN
 full a (NS n) = VC a (full a n)
 
 vZip :: (a -> b -> c) -> Vec a n -> Vec b n -> Vec c n
-vZip f VN VN = VN
+vZip _ VN VN = VN
 vZip f (VC a vec) (VC b vec') = VC (f a b) (vZip f vec vec')
 
-vFold :: (a -> b -> a) -> a -> Vec b n -> a  
-vFold f x VN = x
+vFold :: (a -> b -> a) -> a -> Vec b n -> a
+vFold _ x VN = x
 vFold f x (VC b vec) = f (vFold f x vec) b
 
 vMap :: (a -> b) -> Vec a n -> Vec b n
-vMap f VN       = VN
+vMap _ VN     = VN
 vMap f (VC x v) = VC (f x) (vMap f v)
 
 vConc :: Vec a n -> Vec a m -> Vec a (n + m)
-vConc VN w       = w
+vConc VN w     = w
 vConc (VC x v) w = VC x (vConc v w)
 
-vLen :: ToNat n => Vec a n -> Nat n
-vLen v = natVal
+vLen :: Known n => Vec a n -> Nat n
+vLen VN = NZ
+vLen (VC _ _) = nat
 
 enumF :: Nat n -> Vec (Fin n) n
 enumF NZ     = VN
@@ -116,22 +91,54 @@ enumF (NS (NS n)) = VC FZ (vMap FS (enumF (NS n)))
 vSum :: Num a => Vec a n -> a
 vSum = vFold (+) 0
 
-delete :: Fin (S n) -> Vec a (S n) -> Vec a n
-delete FZ (VC x v)          = v
-delete (FS FZ) (VC x v)     = v
-delete (FS (FS f)) (VC x v) = VC x (delete (FS f) v)
+delete :: Fin ('S n) -> Vec a ('S n) -> Vec a n
+delete FZ (VC  _ v)        = v
+delete (FS  FZ) (VC _ v) = v
+delete (FS  (FS f)) (VC x v) = VC x (delete (FS f) v)
 
-subMatrix :: Fin (S n) -> Fin (S m) -> Vec (Vec a (S m)) (S n) -> Vec (Vec a m) n
+subMatrix :: Fin ('S n) -> Fin ('S m) -> Vec (Vec a ('S m)) ('S n) -> Vec (Vec a m) n
 subMatrix f g v = vMap (delete g) $ delete f v
 
-{-
-det :: (Num a, ToNat n) => Vec (Vec a n) n -> a
-det VN         = 0
-det v@(VC _ _) = vSum $ vZip f (enumF $ vLen v) v where
-    f j (VC x _) = x * minor FZ j v
+-- | not quite the determinant, put (-1) ** x here when implemented
+det :: (Known n, Num a) => Vec (Vec a n) n -> a
+det VN             = 0
+det (VC (VC x _) VN) = x
+det v@VC {} = vSum $ vZip f (enumF $ vLen v) v where
+    f j (VC x _) = (if even' j then 1 else -1) * x * minor FZ j v
 
-minor :: (Num a, ToNat n) => Fin (S n) -> Fin (S n) -> Vec (Vec a (S n)) (S n) -> a
-minor i j v = det (subMatrix i j v)
--}
+    even' :: Fin n -> Bool
+    even' FZ = True
+    even' (FS n) = not $ even' n
+
+minor :: forall n a. (Known ('S n), Num a) => Fin ('S n) -> Fin ('S n) -> Vec (Vec a ('S n)) ('S n) -> a
+minor i j v = det (subMatrix i j v) \\ (down Dict :: Dict (Known n))
+
 main :: IO ()
 main = putStrLn "hoi"
+
+
+class Known n where
+    nat :: Nat n
+
+instance Known 'Z where
+    nat = NZ
+
+instance Known n => Known ('S n) where
+    nat = NS nat
+
+know :: Nat n -> Dict (Known n)
+know NZ = Dict
+know (NS n) = case know n of
+    Dict -> Dict
+
+down :: Dict (Known ('S n)) -> Dict (Known n)
+down Dict = h nat where
+    h :: Nat ('S n) -> Dict (Known n)
+    h (NS n) = know n
+
+down' :: Known ('S n) :- Known n -- turns out this one is less useful than the one above
+down' = unmapDict down              -- or is it?
+
+test :: forall n. Known ('S n) => Nat n
+test = case down Dict of
+    (Dict :: Dict (Known n)) -> nat
