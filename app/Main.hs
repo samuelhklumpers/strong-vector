@@ -1,6 +1,4 @@
-{-# LANGUAGE DataKinds, PolyKinds, TypeFamilies, GADTs, ScopedTypeVariables, 
-UndecidableInstances, FlexibleInstances, TypeOperators, FlexibleContexts,
-ConstraintKinds, MultiParamTypeClasses, AllowAmbiguousTypes, RankNTypes #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts #-}
 
 module Main where
 
