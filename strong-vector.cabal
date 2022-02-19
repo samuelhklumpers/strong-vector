@@ -26,6 +26,7 @@ source-repository head
 executable type-level-exe
   main-is: Main.hs
   other-modules:
+      Naturals
       Paths_strong_vector
   hs-source-dirs:
       app
