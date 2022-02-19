@@ -52,3 +52,7 @@ finToTup FI     = (0, 1)
 finToTup (FZ f) = (0, 1 + toInt (fromFin f))
 finToTup (FS f) = (x + 1, y + 1) where
     (x, y) = finToTup f
+
+toFin :: Nat n -> Fin ('S n)
+toFin NZ     = FI
+toFin (NS n) = FZ $ toFin n
