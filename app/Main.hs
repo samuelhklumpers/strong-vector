@@ -3,7 +3,9 @@
 module Main where
 
 import Data.List ( intercalate )
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z) )
+import Control.Applicative (liftA2)
+
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), Known(nat) )
 
 
 data Vec n a where -- the order of the params makes Vec not a Functor oops
@@ -18,7 +20,10 @@ instance Functor (Vec n) where
     fmap f (VC x v) = VC (f x) (fmap f v)
 
 instance Known n => Applicative (Vec n) where
-    pure x = full x 
+    pure x = full x nat
+    
+    liftA2 _ VN VN = VN
+    liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w) -- i regret everything
 
 vList :: Vec n a -> [a]
 vList = vFold (flip (:)) []
@@ -26,10 +31,6 @@ vList = vFold (flip (:)) []
 full :: a -> Nat n -> Vec n a
 full _ NZ     = VN
 full a (NS n) = VC a (full a n)
-
-vZip :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
-vZip _ VN VN = VN
-vZip f (VC a vec) (VC b vec') = VC (f a b) (vZip f vec vec')
 
 vFold :: (a -> b -> a) -> a -> Vec n b -> a
 vFold _ x VN = x
@@ -66,7 +67,7 @@ subMatrix f g v = delete g <$> delete f v
 det :: Num a => Vec n (Vec n a) -> a
 det VN             = 0
 det (VC (VC x _) VN) = x
-det v@(VC _ w) = vSum $ vZip f (enumF $ vLen v) v where
+det v@(VC _ w) = vSum $ liftA2 f (enumF $ vLen v) v where
     f j (VC x _) = (if even' j then 1 else -1) * x * minor (toFin $ vLen w) j v
 
     even' :: Fin n -> Bool

@@ -25,6 +25,15 @@ instance Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
+class Known n where
+    nat :: Nat n
+
+instance Known 'Z where
+    nat = NZ
+
+instance Known n => Known ('S n) where
+    nat = NS nat
+
 toInt :: Nat n -> Int
 toInt NZ = 0
 toInt (NS n) = 1 + toInt n
