@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses #-}
 
 module Naturals where
 
+import Data.Reflection ( Given(..) )
 
 data N = Z | S N
 
@@ -25,14 +26,11 @@ instance Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
-class Known n where
-    nat :: Nat n
-
-instance Known 'Z where
-    nat = NZ
-
-instance Known n => Known ('S n) where
-    nat = NS nat
+{-
+instance Reifies n (Nat n) where
+-}
+instance Given (Nat n) where
+    given = undefined  -- TODO replace with a reflected/coerced Nat
 
 toInt :: Nat n -> Int
 toInt NZ = 0

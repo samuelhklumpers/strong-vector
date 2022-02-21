@@ -2,10 +2,11 @@
 
 module Main where
 
+import Data.Reflection ( given )
 import Data.List ( intercalate )
-import Control.Applicative (liftA2)
+import Control.Applicative ( liftA2 )
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), Known(nat) )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z) )
 
 
 data Vec n a where -- the order of the params makes Vec not a Functor oops
@@ -19,11 +20,11 @@ instance Functor (Vec n) where
     fmap _ VN       = VN
     fmap f (VC x v) = VC (f x) (fmap f v)
 
-instance Known n => Applicative (Vec n) where
-    pure x = full x nat
+instance Applicative (Vec n) where
+    pure x = full x given
 
     liftA2 _ VN VN = VN
-    --liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w) -- i regret everything
+    liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w)
 
 vHead :: Vec ('S n) a -> a
 vHead (VC a _) = a
@@ -33,10 +34,10 @@ get (VC a _) FI     = a
 get (VC a _) (FZ _) = a
 get (VC _ v) (FS f) = get v f
 
-diag :: Known n => Vec n (Vec n a) -> Vec n a
+diag :: Vec n (Vec n a) -> Vec n a
 diag v = liftA2 get v (enumF $ vLen v)
 
-instance Known n => Monad (Vec n) where
+instance Monad (Vec n) where
     return = pure
 
     v >>= f = diag . fmap f $ v
@@ -56,6 +57,7 @@ instance Known n => Monad (Vec n) where
     -- m >>= (\x -> g x >>= h)
     -- diag . fmap (\x -> g x >>= h) $ m
     -- diag . fmap (\x -> diag . fmap h $ g x) $ m
+    -- TODO finish associativity proof
 
 vList :: Vec n a -> [a]
 vList = vFold (flip (:)) []
