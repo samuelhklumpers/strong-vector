@@ -26,6 +26,7 @@ source-repository head
 executable type-level-exe
   main-is: Main.hs
   other-modules:
+      Naturals
       Paths_strong_vector
   hs-source-dirs:
       app
@@ -33,4 +34,5 @@ executable type-level-exe
   build-depends:
       base >=4.7 && <5
     , constraints
+    , reflection
   default-language: Haskell2010
