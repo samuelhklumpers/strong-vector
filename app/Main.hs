@@ -9,9 +9,20 @@ import Control.Applicative ( liftA2 )
 import Naturals ( type (+), Fin(..), Nat(..), N(S, Z) )
 
 
-data Vec n a where -- the order of the params makes Vec not a Functor oops
+data L = Nil | Cons N L -- restricted to N for now
+-- refer to SingKind for generalized stuff.
+
+data List xs where
+    LN :: List 'Nil
+    LC :: Nat n -> List xs -> List ('Cons n xs)
+
+data Vec n a where
     VN :: Vec 'Z a
     VC ::  a -> Vec n a -> Vec ('S n) a
+
+data Tensor ix a where
+    TN :: Tensor 'Nil a
+    TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
 
 instance Show a => Show (Vec n a) where
     show v = "<" ++ intercalate "," (map show $ vList v) ++ ">"
