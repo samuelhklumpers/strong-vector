@@ -1,12 +1,12 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications #-}
 
 module Vectors where
 
-import Data.Reflection ( given, Given )
 import Data.List ( intercalate )
 import Control.Applicative ( liftA2 )
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower )
+import Data.Constraint ( (\\), Dict(..) )
 
 
 data L = Nil | Cons N L -- restricted to N for now
@@ -28,39 +28,23 @@ instance Show a => Show (Vec n a) where
     show v = "<" ++ intercalate "," (map show $ vList v) ++ ">"
 
 instance Eq a => Eq (Vec n a) where
-    (==) = (and .) . liftA2 (==)
+    VN == VN         = True
+    VC x v == VC y w = x == y && v == w
 
 instance Functor (Vec n) where
     fmap _ VN       = VN
     fmap f (VC x v) = VC (f x) (fmap f v)
 
 instance KnownNat n => Applicative (Vec n) where
-    pure x = full x given
+    pure x = full x nat
 
     liftA2 _ VN VN = VN
-    liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w)
+    liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w \\ lower (Dict @(KnownNat n)))
 
 instance KnownNat n => Monad (Vec n) where
     return = pure
 
     v >>= f = diag . fmap f $ v
-
-    -- return a >>= k
-    --  = diag . fmap k $ full a n
-    --  = diag $ full (k a) n
-    --  = k a
-
-    -- m >>= return
-    --  = diag . fmap return $ m
-    --  = m
-
-    -- (m >>= g) >>= h
-    -- diag . fmap h $ (diag . fmap g $ m)
-
-    -- m >>= (\x -> g x >>= h)
-    -- diag . fmap (\x -> g x >>= h) $ m
-    -- diag . fmap (\x -> diag . fmap h $ g x) $ m
-    -- TODO finish associativity proof
 
 instance Foldable (Vec n) where
   foldMap _ VN = mempty
@@ -68,7 +52,8 @@ instance Foldable (Vec n) where
 
 instance KnownNat n => Traversable (Vec n) where
   sequenceA VN = pure VN
-  sequenceA (VC x v) = VC <$> x <*> sequenceA v
+  sequenceA (VC x v) = VC <$> x <*> (sequenceA v  \\ lower (Dict @(KnownNat n)))
+
 
 get :: Vec n a -> Fin n -> a
 get (VC a _) FI     = a
@@ -120,17 +105,17 @@ delete (FS f) (VC x v) = VC x $ delete f v
 subMatrix :: Fin ('S n) -> Fin ('S m) -> Vec ('S n) (Vec ('S m) a) -> Vec n (Vec m a)
 subMatrix f g v = delete g <$> delete f v
 
-det :: Num a => Vec n (Vec n a) -> a
+det :: (KnownNat n, Num a) => Vec n (Vec n a) -> a
 det VN             = 0
 det (VC (VC x _) VN) = x
-det v@(VC _ w) = vSum $ liftA2 f (enumF $ vLen v) v where
-    f j (VC x _) = (if even' j then 1 else -1) * x * minor (toFin $ vLen w) j v
+det (v@(VC _ w) :: Vec n (Vec n a)) = vSum $ (liftA2 \\ lower (Dict @(KnownNat n))) f (enumF $ vLen v) v where
+    f j (VC x _) = (if even' j then 1 else -1) * x * (minor  \\ lower (Dict @(KnownNat n))) (toFin $ vLen w) j v
 
-    even' :: Fin n -> Bool
+    even' :: Fin m -> Bool
     even' FI     = True
     even' (FZ g) = even' g
     even' (FS g) = not $ even' g
 
-minor :: Num a => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a
+minor :: (KnownNat n, Num a) => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a
 minor i j v = det (subMatrix i j v)
 

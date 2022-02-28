@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses #-}
 
 module Naturals where
+import Data.Constraint
 
 
 data N = Z | S N
@@ -25,18 +26,6 @@ instance Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
-
--- Given doesn't work well: it makes instance constraints as large as instance heads, making some (all) undecidable
-class KnownNat n where
-    nat :: Nat n
-    
-instance KnownNat 'Z where
-    nat = NZ
-    
-instance KnownNat n => KnownNat ('S n) where
-    nat = NS nat
-
-
 toInt :: Nat n -> Int
 toInt NZ = 0
 toInt (NS n) = 1 + toInt n
@@ -59,3 +48,30 @@ finToTup (FS f) = (x + 1, y + 1) where
 toFin :: Nat n -> Fin ('S n)
 toFin NZ     = FI
 toFin (NS n) = FZ $ toFin n
+
+-- Given doesn't work well: it makes instance constraints as large as instance heads, making some (all) undecidable
+class KnownNat n where
+    nat :: Nat n
+
+instance KnownNat 'Z where
+    nat = NZ
+
+instance KnownNat n => KnownNat ('S n) where
+    nat = NS nat
+
+know :: Nat n -> Dict (KnownNat n)
+know NZ = Dict
+know (NS n) = Dict \\ know n
+
+lower :: Dict (KnownNat ('S n)) -> Dict (KnownNat n)
+lower Dict = h nat where
+    h :: Nat ('S n) -> Dict (KnownNat n)
+    h (NS n) = know n
+
+{-
+lower' :: KnownNat ('S n) :- KnownNat n
+lower' = unmapDict lower
+
+lower'' :: Proxy n -> KnownNat ('S n) :- KnownNat n
+lower'' _ = unmapDict lower
+-}
