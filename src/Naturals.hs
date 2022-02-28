@@ -1,8 +1,7 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses #-}
 
 module Naturals where
 
-import Data.Reflection ( Given(..) )
 
 data N = Z | S N
 
@@ -26,11 +25,17 @@ instance Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
-{-
-instance Reifies n (Nat n) where
--}
-instance Given (Nat n) where
-    given = undefined  -- TODO replace with a reflected/coerced Nat
+
+-- Given doesn't work well: it makes instance constraints as large as instance heads, making some (all) undecidable
+class KnownNat n where
+    nat :: Nat n
+    
+instance KnownNat 'Z where
+    nat = NZ
+    
+instance KnownNat n => KnownNat ('S n) where
+    nat = NS nat
+
 
 toInt :: Nat n -> Int
 toInt NZ = 0

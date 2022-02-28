@@ -1,12 +1,12 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts #-}
 
-module Main where
+module Vectors where
 
-import Data.Reflection ( given )
+import Data.Reflection ( given, Given )
 import Data.List ( intercalate )
 import Control.Applicative ( liftA2 )
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z) )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat )
 
 
 data L = Nil | Cons N L -- restricted to N for now
@@ -27,17 +27,20 @@ data Tensor ix a where
 instance Show a => Show (Vec n a) where
     show v = "<" ++ intercalate "," (map show $ vList v) ++ ">"
 
+instance Eq a => Eq (Vec n a) where
+    (==) = (and .) . liftA2 (==)
+
 instance Functor (Vec n) where
     fmap _ VN       = VN
     fmap f (VC x v) = VC (f x) (fmap f v)
 
-instance Applicative (Vec n) where
+instance KnownNat n => Applicative (Vec n) where
     pure x = full x given
 
     liftA2 _ VN VN = VN
     liftA2 f (VC a v) (VC b w) = VC (f a b) (liftA2 f v w)
 
-instance Monad (Vec n) where
+instance KnownNat n => Monad (Vec n) where
     return = pure
 
     v >>= f = diag . fmap f $ v
@@ -63,7 +66,7 @@ instance Foldable (Vec n) where
   foldMap _ VN = mempty
   foldMap f (VC x v) = f x <> foldMap f v
 
-instance Traversable (Vec n) where
+instance KnownNat n => Traversable (Vec n) where
   sequenceA VN = pure VN
   sequenceA (VC x v) = VC <$> x <*> sequenceA v
 
@@ -75,7 +78,7 @@ get (VC _ v) (FS f) = get v f
 vHead :: Vec ('S n) a -> a
 vHead (VC a _) = a
 
-diag :: Vec n (Vec n a) -> Vec n a
+diag :: KnownNat n => Vec n (Vec n a) -> Vec n a
 diag v = liftA2 get v (enumF $ vLen v)
 
 vList :: Vec n a -> [a]
@@ -131,5 +134,3 @@ det v@(VC _ w) = vSum $ liftA2 f (enumF $ vLen v) v where
 minor :: Num a => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a
 minor i j v = det (subMatrix i j v)
 
-main :: IO ()
-main = putStrLn "hoi"

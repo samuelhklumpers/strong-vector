@@ -24,13 +24,21 @@ dependencies:
 - constraints
 - reflection
 
+library:
+  source-dirs:  src
+  ghc-options:
+  - -Wall
 
-executables:
-  type-level-exe:
-    main:                Main.hs
-    source-dirs:         app
+tests:
+  strong-vector-test:
+    main:                Spec.hs
+    source-dirs:         test
     ghc-options:
-    - -Wall
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    dependencies:
+    - hspec                       
+    - QuickCheck                 
+    - quickcheck-classes-base   
+    - strong-vector
