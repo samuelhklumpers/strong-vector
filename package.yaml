@@ -23,6 +23,9 @@ dependencies:
 - base >= 4.7 && < 5
 - constraints
 - reflection
+- distributive
+- adjunctions
+- comonad
 
 library:
   source-dirs:  src

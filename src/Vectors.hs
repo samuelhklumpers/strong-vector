@@ -4,9 +4,14 @@ module Vectors where
 
 import Data.List ( intercalate )
 import Control.Applicative ( liftA2 )
+import Control.Comonad
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower )
+
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know )
 import Data.Constraint ( (\\), Dict(..) )
+import Data.Functor.Rep
+import Data.Distributive
+
 
 
 data L = Nil | Cons N L -- restricted to N for now
@@ -52,13 +57,42 @@ instance Foldable (Vec n) where
 
 instance KnownNat n => Traversable (Vec n) where
   sequenceA VN = pure VN
-  sequenceA (VC x v) = VC <$> x <*> (sequenceA v  \\ lower (Dict @(KnownNat n)))
+  sequenceA (VC x v) = VC <$> x <*> (sequenceA v \\ lower (Dict @(KnownNat n)))
+
+instance Comonad (Vec ('S n)) where
+    extract (VC x _) = x
+    duplicate v = fmap (const v) v
+
+instance KnownNat n => Distributive (Vec n) where
+    distribute = distributeRep -- this gives us nice(r) transposes I think
+    -- or at least we can now transpose through [] or so
+
+instance KnownNat n => Representable (Vec n) where
+    type Rep (Vec n) = Fin n
+
+    tabulate = generate
+    index = get
+
+instance (KnownNat n, Num a) => Num (Vec n a) where
+    (+) = liftA2 (+) -- this is numpy
+    (*) = liftA2 (*)
+
+    abs = fmap abs
+    signum = fmap signum
+    negate = fmap negate
+
+    fromInteger = pure . fromInteger
 
 
 get :: Vec n a -> Fin n -> a
-get (VC a _) FI     = a
-get (VC a _) (FZ _) = a
+get (VC a _) FZ     = a
 get (VC _ v) (FS f) = get v f
+
+generate :: KnownNat n => (Fin n -> a) -> Vec n a
+generate = h nat where
+    h :: Nat n -> (Fin n -> a) -> Vec n a
+    h NZ _     = VN
+    h (NS n) f = VC (f FZ) (h n (f . finS \\ know n)) -- :(
 
 vHead :: Vec ('S n) a -> a
 vHead (VC a _) = a
@@ -85,21 +119,16 @@ vLen :: Vec n a -> Nat n
 vLen VN = NZ
 vLen (VC _ v) = NS (vLen v)
 
-toFin :: Nat n -> Fin ('S n)
-toFin NZ     = FI
-toFin (NS n) = FZ $ toFin n
-
 enumF :: Nat n -> Vec n (Fin n)
 enumF NZ          = VN
-enumF (NS NZ)     = VC FI VN
-enumF (NS (NS n)) = VC (toFin $ NS n) (fmap FS (enumF (NS n)))
+enumF (NS NZ)     = VC FZ VN
+enumF (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumF (NS n)))
 
 vSum :: Num a => Vec n a -> a
 vSum = vFold (+) 0
 
 delete :: Fin ('S n) -> Vec ('S n) a -> Vec n a
-delete FI (VC _ VN)    = VN
-delete (FZ _) (VC _ v) = v
+delete FZ (VC _ v)    = v
 delete (FS f) (VC x v) = VC x $ delete f v
 
 subMatrix :: Fin ('S n) -> Fin ('S m) -> Vec ('S n) (Vec ('S m) a) -> Vec n (Vec m a)
@@ -109,11 +138,10 @@ det :: (KnownNat n, Num a) => Vec n (Vec n a) -> a
 det VN             = 0
 det (VC (VC x _) VN) = x
 det (v@(VC _ w) :: Vec n (Vec n a)) = vSum $ (liftA2 \\ lower (Dict @(KnownNat n))) f (enumF $ vLen v) v where
-    f j (VC x _) = (if even' j then 1 else -1) * x * (minor  \\ lower (Dict @(KnownNat n))) (toFin $ vLen w) j v
+    f j (VC x _) = (if even' j then 1 else -1) * x * (minor  \\ lower (Dict @(KnownNat n))) (toFZ $ vLen w) j v
 
     even' :: Fin m -> Bool
-    even' FI     = True
-    even' (FZ g) = even' g
+    even' FZ     = True
     even' (FS g) = not $ even' g
 
 minor :: (KnownNat n, Num a) => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a

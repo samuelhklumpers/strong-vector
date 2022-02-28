@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase #-}
 
 module Naturals where
 import Data.Constraint
+import Data.Bifunctor (first)
 
 
 data N = Z | S N
@@ -11,9 +12,13 @@ data Nat n where
     NS :: Nat n -> Nat ('S n)
 
 data Fin n where
-    FI :: Fin ('S 'Z)
-    FZ :: Fin ('S n) -> Fin ('S ('S n))
+    FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
+
+finS :: KnownNat n => Fin n -> Fin ('S n)
+finS (f :: Fin n) = case nat :: Nat n of
+    NZ   -> case f of {}
+    NS _ -> FS f
 
 type family (n :: N) + (m :: N) :: N where
     'Z + m     = m
@@ -22,7 +27,7 @@ type family (n :: N) + (m :: N) :: N where
 instance Show (Nat n) where
     show n = "Nat " ++ show (toInt n)
 
-instance Show (Fin ('S n)) where
+instance KnownNat n => Show (Fin ('S n)) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
@@ -34,20 +39,20 @@ toInt (NS n) = 1 + toInt n
 NZ +| n     = n
 (NS n) +| m = NS (n +| m)
 
-fromFin :: Fin ('S n) -> Nat ('S n)
-fromFin FI     = NS NZ
-fromFin (FZ f) = NS (fromFin f)
-fromFin (FS f) = NS (fromFin f)
+finSize :: KnownNat n => Fin n -> Nat n
+finSize _ = nat
 
-finToTup :: Fin ('S n) -> (Int, Int)
-finToTup FI     = (0, 1)
-finToTup (FZ f) = (0, 1 + toInt (fromFin f))
-finToTup (FS f) = (x + 1, y + 1) where
-    (x, y) = finToTup f
+finToTup :: KnownNat n => Fin n -> (Int, Int)
+finToTup f@FZ = (0, toInt $ finSize f)
+finToTup ((FS f) :: Fin n) = first (+1) $ finToTup f \\ lower (Dict @(KnownNat n))
 
-toFin :: Nat n -> Fin ('S n)
-toFin NZ     = FI
-toFin (NS n) = FZ $ toFin n
+toFZ :: Nat n -> Fin ('S n)
+toFZ _ = FZ
+
+toFS :: Nat n -> Fin ('S n)
+toFS NZ     = FZ
+toFS (NS n) = FS $ toFS n
+
 
 -- Given doesn't work well: it makes instance constraints as large as instance heads, making some (all) undecidable
 class KnownNat n where
