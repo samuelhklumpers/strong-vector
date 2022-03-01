@@ -1,8 +1,9 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase, AllowAmbiguousTypes #-}
 
 module Naturals where
-import Data.Constraint
+
 import Data.Bifunctor (bimap)
+import Data.Constraint ( Dict(..), (\\) )
 import Data.Void (Void)
 
 
