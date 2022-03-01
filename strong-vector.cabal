@@ -6,7 +6,7 @@ cabal-version: 1.12
 
 name:           strong-vector
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/type-level#readme>
+description:    Please see the README on GitHub at <https://github.com/samuelhklumpers/strong-vector>
 homepage:       https://github.com/samuelhklumpers/strong-vector#readme
 bug-reports:    https://github.com/samuelhklumpers/strong-vector/issues
 author:         Author name here
