@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications, AllowAmbiguousTypes #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Vectors where
 
@@ -7,11 +8,13 @@ import Control.Applicative ( liftA2 )
 import Control.Comonad
 
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt, plusRightInj, plusRightRev, ExistNat (Witness) )
 import Data.Constraint ( (\\), Dict(..) )
 import Data.Functor.Rep
 import Data.Distributive
 
+import Prelude hiding ( take )
+import Data.Constraint.Deferrable
 
 
 data L = Nil | Cons N L -- restricted to N for now
@@ -93,6 +96,54 @@ generate = h nat where
     h :: Nat n -> (Fin n -> a) -> Vec n a
     h NZ _     = VN
     h (NS n) f = VC (f FZ) (h n (f . finS \\ know n)) -- :(
+
+unfoldN :: Nat n -> (s -> (a, s)) -> s -> Vec n a
+unfoldN NZ _ _ = VN
+unfoldN (NS n) f z = VC a (unfoldN n f s) where
+    (a, s) = f z
+
+iterateN :: Nat n -> (a -> a) -> a -> Vec n a
+iterateN NZ     _ _ = VN
+iterateN (NS n) f z = VC z (iterateN n f (f z))
+
+linspace :: Fractional a => a -> a -> Nat n -> Vec n a
+linspace x y n = iterateN n step x where
+    step z = z + (y - x) / fromIntegral (toInt n)
+
+-- :))
+
+class (k ~ (n + m)) => T k n m where
+    witness :: k :~: n + m
+
+instance (k ~ (n + m)) => T k n m where
+    witness = Refl
+
+{- 
+-- :')
+take :: (KnownNat m) => Nat n -> Vec (n + m) a -> Vec n a
+take (n :: Nat n) (v :: Vec k a) = case ex of
+    Witness m Dict -> take' n m v
+
+    where
+        npm :: Nat k
+        npm = vLen v
+
+        m :: Nat (k - n)
+        m = npm -| n
+
+        ex :: ExistNat (T k n)
+        ex = Witness _ws _wt
+-}
+{-
+    (f :: Nat m -> Vec (n + m) a -> Vec n a) -> f nat (v \\ pf)
+        where
+        pf :: npm :~: n + m
+        pf = _ 
+-}
+
+take' :: forall n m a. Nat n -> Nat m -> Vec (n + m) a -> Vec n a
+take' NZ     _ _        = VN
+take' (NS n) m (VC a v) = VC a $ take' n m v
 
 vHead :: Vec ('S n) a -> a
 vHead (VC a _) = a

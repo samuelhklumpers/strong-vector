@@ -1,8 +1,10 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Naturals where
 import Data.Constraint
-import Data.Bifunctor (first)
+import Data.Bifunctor (bimap)
+import Data.Constraint.Deferrable
 
 
 data N = Z | S N
@@ -20,6 +22,7 @@ finS (f :: Fin n) = case nat :: Nat n of
     NZ   -> case f of {}
     NS _ -> FS f
 
+-- no generalized injectivity annotations :(
 type family (n :: N) + (m :: N) :: N where
     'Z + m     = m
     ('S n) + m = 'S (n + m)
@@ -44,7 +47,7 @@ finSize _ = nat
 
 finToTup :: KnownNat n => Fin n -> (Int, Int)
 finToTup f@FZ = (0, toInt $ finSize f)
-finToTup ((FS f) :: Fin n) = first (+1) $ finToTup f \\ lower (Dict @(KnownNat n))
+finToTup ((FS f) :: Fin n) = bimap (+1) (+1) $ finToTup f \\ lower (Dict @(KnownNat n))
 
 toFZ :: Nat n -> Fin ('S n)
 toFZ _ = FZ
@@ -80,3 +83,13 @@ lower' = unmapDict lower
 lower'' :: Proxy n -> KnownNat ('S n) :- KnownNat n
 lower'' _ = unmapDict lower
 -}
+
+plusRightInj :: Nat n -> (n + m) :~: (n + k) -> m :~: k
+plusRightInj NZ Refl = Refl
+plusRightInj (NS n) Refl = plusRightInj n Refl
+
+plusRightRev :: ('S n + m) :~: 'S k -> (n + m) :~: k
+plusRightRev Refl = Refl
+
+data ExistNat f where
+    Witness :: Nat n -> Dict (f n) -> ExistNat f
