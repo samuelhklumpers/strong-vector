@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications, AllowAmbiguousTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Vectors where
 
@@ -8,14 +7,12 @@ import Control.Applicative ( liftA2 )
 import Control.Comonad
 
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt, plusRightInj, plusRightRev, ExistNat (Witness) )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt )
 import Data.Constraint ( (\\), Dict(..) )
 import Data.Functor.Rep
 import Data.Distributive
 
-import Prelude hiding ( take )
-import Data.Constraint.Deferrable
-
+import Prelude hiding ( take, drop )
 
 data L = Nil | Cons N L -- restricted to N for now
 -- refer to SingKind for generalized stuff.
@@ -110,40 +107,13 @@ linspace :: Fractional a => a -> a -> Nat n -> Vec n a
 linspace x y n = iterateN n step x where
     step z = z + (y - x) / fromIntegral (toInt n)
 
--- :))
+take :: forall m n a. Nat n -> Vec (n + m) a -> Vec n a
+take NZ     _                   = VN
+take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v
 
-class (k ~ (n + m)) => T k n m where
-    witness :: k :~: n + m
-
-instance (k ~ (n + m)) => T k n m where
-    witness = Refl
-
-{- 
--- :')
-take :: (KnownNat m) => Nat n -> Vec (n + m) a -> Vec n a
-take (n :: Nat n) (v :: Vec k a) = case ex of
-    Witness m Dict -> take' n m v
-
-    where
-        npm :: Nat k
-        npm = vLen v
-
-        m :: Nat (k - n)
-        m = npm -| n
-
-        ex :: ExistNat (T k n)
-        ex = Witness _ws _wt
--}
-{-
-    (f :: Nat m -> Vec (n + m) a -> Vec n a) -> f nat (v \\ pf)
-        where
-        pf :: npm :~: n + m
-        pf = _ 
--}
-
-take' :: forall n m a. Nat n -> Nat m -> Vec (n + m) a -> Vec n a
-take' NZ     _ _        = VN
-take' (NS n) m (VC a v) = VC a $ take' n m v
+drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
+drop NZ v = v
+drop (NS k) (VC _ v) = drop k v
 
 vHead :: Vec ('S n) a -> a
 vHead (VC a _) = a

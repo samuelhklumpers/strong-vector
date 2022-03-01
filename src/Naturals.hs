@@ -1,10 +1,9 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase, AllowAmbiguousTypes #-}
 
 module Naturals where
 import Data.Constraint
 import Data.Bifunctor (bimap)
-import Data.Constraint.Deferrable
+import Data.Void (Void)
 
 
 data N = Z | S N
@@ -16,6 +15,9 @@ data Nat n where
 data Fin n where
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
+
+fin0 :: Fin 'Z -> Void
+fin0 f = case f of {}
 
 finS :: KnownNat n => Fin n -> Fin ('S n)
 finS (f :: Fin n) = case nat :: Nat n of
@@ -82,7 +84,6 @@ lower' = unmapDict lower
 
 lower'' :: Proxy n -> KnownNat ('S n) :- KnownNat n
 lower'' _ = unmapDict lower
--}
 
 plusRightInj :: Nat n -> (n + m) :~: (n + k) -> m :~: k
 plusRightInj NZ Refl = Refl
@@ -93,3 +94,4 @@ plusRightRev Refl = Refl
 
 data ExistNat f where
     Witness :: Nat n -> Dict (f n) -> ExistNat f
+-}
