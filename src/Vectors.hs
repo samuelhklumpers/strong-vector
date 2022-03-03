@@ -16,7 +16,8 @@ import Prelude hiding ((++), zipWith, take, drop )
 import qualified Prelude as P
 
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt )
+import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt, plusAssoc, type (:*), type (<?), rightOrCancel, factorZ, ltNeq, (*|) )
+import Data.Constraint.Deferrable
 
 
 -- | The singleton type for vectors
@@ -104,6 +105,33 @@ get :: Vec n a -> Fin n -> a
 get (VC a _) FZ     = a
 get (VC _ v) (FS f) = get v f
 
+-- | Extract the segment from @n@ until @n + m@ from @v@
+segment :: forall n m k a. KnownNat k => Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
+segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
+
+-- | Take each @m@th element of @v@
+subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
+subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
+subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+
+-- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
+slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
+slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
+
+-- let us forgo the numpy sentiment of absurd slices
+-- and write a[start:stop]
+-- a[start:steps:step]
+
+-- | @take n v@ returns a prefix of size @n@ from @v@
+take :: forall m n a. Nat n -> Vec (n + m) a -> Vec n a
+take NZ     _                   = VN
+take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v -- we need to use take @m here to disambiguate m, since it is ambiguous because GHC does not recognize injectivity of n + m over m
+
+-- | @drop n v@ returns the suffix after @n@ elements of @v@
+drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
+drop NZ v = v
+drop (NS k) (VC _ v) = drop k v
+
 -- | Generate a vector by applying a function to a range of indices
 generateN :: Nat n -> (Fin n -> a) -> Vec n a
 generateN NZ _     = VN
@@ -136,16 +164,6 @@ iterate = iterateN nat
 linspace :: Fractional a => a -> a -> Nat n -> Vec n a
 linspace x y n = iterateN n step x where
     step z = z + (y - x) / fromIntegral (toInt n)
-
--- | @take n v@ returns a prefix of size @n@ from @v@
-take :: forall m n a. Nat n -> Vec (n + m) a -> Vec n a
-take NZ     _                   = VN
-take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v -- we need to use take @m here to disambiguate m, since it is ambiguous because GHC does not recognize injectivity of n + m over m
-
--- | @drop n v@ returns the suffix after @n@ elements of @v@
-drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
-drop NZ v = v
-drop (NS k) (VC _ v) = drop k v
 
 -- | Safely return the first element of a non-empty vector
 head :: Vec ('S n) a -> a
@@ -192,7 +210,7 @@ size (VC _ v) = NS (size v)
 enumFin :: Nat n -> Vec n (Fin n)
 enumFin NZ          = VN
 enumFin (NS NZ)     = VC FZ VN
-enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n)))
+enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n))) -- should probably reverse this at some point
 
 -- | Tuple the elements of a vector with their indices
 enumerate :: Vec n a -> Vec n (Fin n, a)

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase, AllowAmbiguousTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | This module declares the type-level naturals for the type signatures of sized vectors,
 -- along with the necessary machinery to manipulate them.
@@ -7,6 +8,10 @@ module Naturals where
 import Data.Bifunctor (bimap)
 import Data.Constraint ( Dict(..), (\\) )
 import Data.Void (Void)
+import Data.Constraint.Deferrable
+
+-- | The boolean type.
+data B = T | F
 
 -- | The natural numbers type.
 data N = Z | S N
@@ -45,6 +50,54 @@ type family (n :: N) + (m :: N) :: N where
     'Z + m     = m
     ('S n) + m = 'S (n + m)
 
+-- | Congruence for @'S@
+congS :: n :~: m -> 'S n :~: 'S m
+congS Refl = Refl
+
+-- | Proof of associativity of @+@
+plusAssoc :: Nat n -> Nat m -> Nat k -> (n + m) + k :~: n + (m + k)
+plusAssoc NZ _ _ = Refl
+plusAssoc (NS n') m k = congS $ plusAssoc n' m k
+
+-- | Type-level multiplication
+type family (n :: N) :* (m :: N) :: N where
+    'Z :* m = 'Z
+    -- no nested type instances without undecidable instances :(
+    -- so move this somewhere else
+    ('S n) :* m = m + (n :* m)
+
+-- | Type-level less than
+type family (n :: N) <: (m :: N) :: B where
+    n <: 'Z      = 'F
+    'Z <: 'S n   = 'T
+    'S n <: 'S m = n <: m
+
+-- | Type of evidence for less than
+type n <? m = n <: m :~: 'T
+-- can push this to a class or so to make writing this easier for the user
+
+-- | Proof that if @n :* m@ is @'Z@, then at least one of them is @'Z@. 
+factorZ :: Nat n -> Nat m -> (n :* m) :~: 'Z -> Either (n :~: 'Z) (m :~: 'Z)
+factorZ NZ _ _ = Left Refl
+factorZ _ NZ _ = Right Refl
+
+-- | Alias for logical negation.
+type Neg x = x -> Void
+
+-- | ex falso [sequitur] quodlibet
+exFalso :: Void -> a
+exFalso v = case v of {}
+
+-- | If @a \lor b@ and @\lnot b@, then @a@.
+rightOrCancel :: Neg y -> Either x y -> x
+rightOrCancel _ (Left x) = x
+rightOrCancel c (Right y) = exFalso $ c y
+
+-- | If @n <? m@, then @n@ is not @m@.
+ltNeq :: Nat n -> Nat m -> n <? m -> Neg (m :~: n)
+ltNeq (NS n) (NS m) p Refl = ltNeq n m p Refl
+
+
 instance Show (Nat n) where
     show n = "Nat " ++ show (toInt n)
 
@@ -61,6 +114,11 @@ toInt (NS n) = 1 + toInt n
 (+|) :: Nat n -> Nat m -> Nat (n + m)
 NZ     +| n = n -- the definition of the @+@ family makes everything here typecheck smoothly
 (NS n) +| m = NS (n +| m)
+
+-- | Natural singleton multiplication
+(*|) :: Nat n -> Nat m -> Nat (n :* m)
+NZ     *| _ = NZ
+(NS n) *| m = m +| (n *| m)
 
 -- | Return the size of the set this @Fin@ is from
 finSize :: KnownNat n => Fin n -> Nat n
