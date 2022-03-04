@@ -51,6 +51,8 @@ f3o6 = toFin three two
 
 sliceAndMaskResult = VC f1o6 (VC f3o6 VN)
 
+--splitResult = 
+
 theMask :: BVec N6 ('BCons 'F ('BCons 'T ('BCons 'F ('BCons 'T ('BCons 'F ('BCons 'F 'BNil))))))
 theMask = BC BF $ BC BT $ BC BF $ BC BT $ BC BF $ BC BF BN
 
@@ -63,7 +65,8 @@ propertyTestLaws (Laws className properties) =
 unitTests = test [ 
         "indexing enumFin returns the index"  ~: (get (enumFin four) twoF) ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "      ~: slice one two two one Refl enum6 ~=? sliceAndMaskResult,
-        "masking [0..5][F,T,F,T,F,F] = [1,3]" ~: mask enum6 theMask ~=? sliceAndMaskResult
+        "masking [0..5][F,T,F,T,F,F] = [1,3]" ~: mask enum6 theMask ~=? sliceAndMaskResult --,
+        -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
 
 main :: IO ()

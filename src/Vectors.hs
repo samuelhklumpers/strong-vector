@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications, AllowAmbiguousTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
@@ -20,7 +21,7 @@ import qualified Prelude as P
 import Naturals
 
 
--- | The singleton type for vectors
+-- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
     VC ::  a -> Vec n a -> Vec ('S n) a
@@ -47,11 +48,31 @@ data List xs where
     LN :: List 'Nil
     LC :: Nat n -> List xs -> List ('Cons n xs)
 
-{-
+-- | The type for tensors with known dimensions
 data Tensor ix a where
-    TN :: Tensor 'Nil a
+    TV :: Vec n a -> Tensor ('Cons n 'Nil) a
     TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
--}
+
+-- | The list product type family
+type family Prod (ns :: L) :: N where
+    Prod 'Nil         = 'S 'Z
+    Prod ('Cons n ns) = n :* Prod ns
+
+concatenate :: Vec n (Vec m a) -> Vec (n :* m) a
+concatenate VN = VN
+concatenate (VC v vs) = v ++ concatenate vs
+
+flatten :: Tensor ix a -> Vec (Prod ix) a
+flatten (TV v) = v \\ mulRightId (size v)
+flatten (TC vs) = concatenate $ fmap flatten vs
+
+toShape :: Vec (Prod ix) a -> List ix -> Neg (ix :~: 'Nil) -> Tensor ix a
+toShape VN (LC n LN) c          = undefined -- TV VN
+toShape VN (LC n (LC nat li)) c = undefined -- _wy
+toShape (VC a vec) ns c         = undefined -- _wt
+
+reshape :: Tensor ix a -> List ix' -> Neg (ix' :~: 'Nil) -> Prod ix :~: Prod ix' -> Tensor ix' a
+reshape t ns c pf = toShape (flatten t \\ pf) ns c
 
 -- | The boolean counting type family
 type family Count (bs :: BV) :: N where
@@ -133,6 +154,12 @@ segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
 subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
 subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
 subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+
+-- | Split vector into @n@ pieces
+split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
+split NZ _ _     = VN
+split n NZ _     = full VN n
+split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
 
 -- | Boolean mask extraction
 mask :: Vec n a -> BVec n bs -> Vec (Count bs) a

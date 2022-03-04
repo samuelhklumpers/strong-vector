@@ -82,6 +82,10 @@ type family (n :: N) :* (m :: N) :: N where
     -- so move this somewhere else
     ('S n) :* m = m + (n :* m)
 
+mulRightId :: Nat n -> n :* 'S 'Z :~: n
+mulRightId NZ = Refl
+mulRightId (NS n) = congS $ mulRightId n
+
 -- | Type-level less than
 type family (n :: N) <: (m :: N) :: B where
     n <: 'Z      = 'F
