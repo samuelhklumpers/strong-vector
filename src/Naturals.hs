@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase, AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | This module declares the type-level naturals for the type signatures of sized vectors,
 -- along with the necessary machinery to manipulate them.
@@ -11,11 +12,24 @@ import Data.Void (Void)
 import Data.Constraint.Deferrable
 
 -- | The boolean type.
-data B = T | F
+data B = T | F deriving Show
 
 -- | The natural numbers type.
-data N = Z | S N
+data N = Z | S N deriving Show
 -- Note that -XDataKinds lifts @N@ to a kind, and @Z@ and @S@ to type constructors
+
+
+-- | The singleton type for boolean.
+data Boolean b where
+    BT :: Boolean 'T
+    BF :: Boolean 'F
+
+-- | Lower a Boolean to a boolean.
+toB :: Boolean b -> B
+toB BT = T
+toB BF = F
+
+deriving instance Show (Boolean b)
 
 -- | The singleton type for natural numbers.
 data Nat n where
@@ -32,6 +46,8 @@ data Fin n where
     -- 2. some functions expect 'S n, for example see @delete@
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
+
+deriving instance Eq (Fin n)
 
 -- | Proof that @f :: Fin 'Z@ if and only if @f@ is @undefined@
 fin0 :: Fin 'Z -> Void
@@ -140,6 +156,10 @@ toFZ _ = FZ
 toFS :: Nat n -> Fin ('S n)
 toFS NZ     = FZ
 toFS (NS n) = FS $ toFS n
+
+toFin :: Nat n -> Nat m -> Fin (n + 'S m)
+toFin NZ m     = toFZ m
+toFin (NS n) m = finS \\ know (n +| NS m) $ toFin n m
 
 -- | This class associates singleton values to type-level naturals.
 -- Note that, unintuitively, @KnownNat n@ not hold universally for @n :: N@, (barring type reflection).

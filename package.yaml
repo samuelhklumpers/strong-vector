@@ -41,7 +41,9 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - hspec                       
+    - hspec  
+    - hspec-contrib                   
+    - HUnit  
     - QuickCheck                 
     - quickcheck-classes-base   
     - strong-vector

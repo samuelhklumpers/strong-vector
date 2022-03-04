@@ -8,6 +8,7 @@ import Control.Applicative ( liftA2 )
 import Control.Comonad ( Comonad(extract, duplicate) )
 
 import Data.Constraint ( (\\), Dict(..) )
+import Data.Constraint.Deferrable
 import Data.Functor.Rep ( distributeRep, Representable(..) )
 import Data.Distributive ( Distributive(distribute) )
 import Data.List ( intercalate )
@@ -16,8 +17,7 @@ import Prelude hiding ((++), zipWith, take, drop )
 import qualified Prelude as P
 
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt, plusAssoc, type (:*), type (<?), rightOrCancel, factorZ, ltNeq, (*|) )
-import Data.Constraint.Deferrable
+import Naturals
 
 
 -- | The singleton type for vectors
@@ -30,6 +30,18 @@ data L = Nil | Cons N L
 -- restricted to N for now
 -- refer to SingKind for generalized stuff.
 
+-- | The vector of booleans type
+data BV = BNil | BCons B BV
+
+-- | The singleton type for vectors of booleans
+data BVec n xs where
+    BN :: BVec 'Z 'BNil
+    BC :: Boolean b -> BVec n xs -> BVec ('S n) ('BCons b xs)
+
+toVec :: BVec n xs -> Vec n B
+toVec BN = VN
+toVec (BC b bv) = VC (toB b) (toVec bv)
+
 -- | The singleton type for lists of natural numbers
 data List xs where
     LN :: List 'Nil
@@ -41,6 +53,14 @@ data Tensor ix a where
     TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
 -}
 
+-- | The boolean counting type family
+type family Count (bs :: BV) :: N where
+    Count 'BNil = 'Z
+    Count ('BCons 'T bs) = 'S (Count bs)
+    Count ('BCons 'F bs) = Count bs
+
+instance Show (BVec n xs) where
+    show v = "{" P.++ intercalate "," (map show $ toList $ toVec v) P.++ "}"
 
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
@@ -113,6 +133,12 @@ segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
 subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
 subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
 subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+
+-- | Boolean mask extraction
+mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
+mask VN BN = VN
+mask (VC a v) (BC BT bv) = VC a (mask v bv)
+mask (VC _ v) (BC BF bv) = mask v bv
 
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
 slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
@@ -189,7 +215,7 @@ square v = fmap (const v) v
 
 -- | Convert a vector to a list
 toList :: Vec n a -> [a]
-toList = foldl (flip (:)) []
+toList = foldr (:) []
 
 -- | @full x n@ returns a vector of @n@ copies of @x@
 full :: a -> Nat n -> Vec n a
@@ -210,7 +236,7 @@ size (VC _ v) = NS (size v)
 enumFin :: Nat n -> Vec n (Fin n)
 enumFin NZ          = VN
 enumFin (NS NZ)     = VC FZ VN
-enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n))) -- should probably reverse this at some point
+enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n)))
 
 -- | Tuple the elements of a vector with their indices
 enumerate :: Vec n a -> Vec n (Fin n, a)
