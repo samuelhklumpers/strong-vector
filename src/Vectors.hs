@@ -1,5 +1,8 @@
 {-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications, AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
@@ -13,12 +16,15 @@ import Data.Constraint.Deferrable
 import Data.Functor.Rep ( distributeRep, Representable(..) )
 import Data.Distributive ( Distributive(distribute) )
 import Data.List ( intercalate )
+import Control.Lens
 
 import Prelude hiding ((++), zipWith, take, drop )
 import qualified Prelude as P
 
+import qualified Data.Map as M
 
 import Naturals
+import Data.Kind (Type)
 
 
 -- | The type for vectors with known size
@@ -48,10 +54,28 @@ data List xs where
     LN :: List 'Nil
     LC :: Nat n -> List xs -> List ('Cons n xs)
 
+data HL a = HNil | HCons a (HL a)
+
+type family Length (xs :: HL k) :: N where
+    Length 'HNil         = 'Z
+    Length ('HCons _ xs) = 'S (Length xs)
+
+data HList (xs :: HL k) where
+    HN :: HList 'HNil
+    HC :: a -> HList xs -> HList ('HCons a xs)
+
+
 -- | The type for tensors with known dimensions
 data Tensor ix a where
     TV :: Vec n a -> Tensor ('Cons n 'Nil) a
     TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
+
+-- a block tensor is described by a list of lists of dimensions
+-- so we have 2 levels of stacking operations
+data Block ix a where
+    BLV :: Vec n a -> Block ('HCons ('HCons n 'HNil) 'HNil) a   -- a vector is a "column block"
+    BLC :: Vec n (Block ix a) -> Block ('HCons iy ix) a -> Block ('HCons ('HCons n iy) ix) a -- n blocks + a chain of vectors of blocks (of the same shape) -> longer chain of blocks
+    BLS :: Vec n (Block ix a) -> Block ('HCons ('HCons n 'HNil) ix) a -- n blocks -> block of higher dimension
 
 -- | The list product type family
 type family Prod (ns :: L) :: N where
@@ -61,6 +85,36 @@ type family Prod (ns :: L) :: N where
 concatenate :: Vec n (Vec m a) -> Vec (n :* m) a
 concatenate VN = VN
 concatenate (VC v vs) = v ++ concatenate vs
+
+type Sparse (ix :: HL N) a = M.Map (HList ix) a
+
+type family Elem (x :: k) (xs :: HL k) :: B where
+    Elem x 'HNil        = 'F
+    Elem x ('HCons x _) = 'T
+    Elem x ('HCons y v) = Elem x v
+
+type family Sing :: k -> Type
+
+data SomeSing k where
+    SomeSing :: Sing (a :: k) -> SomeSing k
+
+class SingKind k where
+    type Demote k = (r :: Type) | r -> k
+
+    fromSing :: Sing (a :: k) -> Demote k
+    toSing :: Demote k -> SomeSing k
+
+{-
+getL :: HList (xs :: HL k) -> Fin (Length xs) -> Demote k
+getL (HC x _) FZ = x
+getL xs (FS fin) = _wd
+-}
+
+vAt :: Fin n -> Lens' (Vec n a) a
+vAt f = lens (`get` f) (`put` f)
+
+vSlice ::  forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
+vSlice = _
 
 flatten :: Tensor ix a -> Vec (Prod ix) a
 flatten (TV v) = v \\ mulRightId (size v)
@@ -79,6 +133,8 @@ type family Count (bs :: BV) :: N where
     Count 'BNil = 'Z
     Count ('BCons 'T bs) = 'S (Count bs)
     Count ('BCons 'F bs) = Count bs
+
+
 
 instance Show (BVec n xs) where
     show v = "{" P.++ intercalate "," (map show $ toList $ toVec v) P.++ "}"
@@ -167,6 +223,16 @@ mask VN BN = VN
 mask (VC a v) (BC BT bv) = VC a (mask v bv)
 mask (VC _ v) (BC BF bv) = mask v bv
 
+put :: Vec n a -> Fin n -> a -> Vec n a
+put VN       _      _ = VN
+put (VC _ v) FZ     y = VC y v
+put (VC x v) (FS f) y = VC x (put v f y)
+
+putMask :: Vec n a -> BVec n bs -> Vec (Count bs) a -> Vec n a
+putMask VN BN VN = VN
+putMask (VC _ v) (BC BT bs) (VC y w) = VC y $ putMask v bs w
+putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
+
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
 slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
 slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
@@ -184,6 +250,9 @@ take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v -- we need to use take @m h
 drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
 drop NZ v = v
 drop (NS k) (VC _ v) = drop k v
+
+splitAt :: forall m n a. Nat n -> Vec (n + m) a -> (Vec n a, Vec m a)
+splitAt n v = (take @m n v, drop n v)
 
 -- | Generate a vector by applying a function to a range of indices
 generateN :: Nat n -> (Fin n -> a) -> Vec n a

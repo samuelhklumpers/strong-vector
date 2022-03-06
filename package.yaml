@@ -26,6 +26,8 @@ dependencies:
 - distributive
 - adjunctions
 - comonad
+- lens
+- containers
 
 library:
   source-dirs:  src
