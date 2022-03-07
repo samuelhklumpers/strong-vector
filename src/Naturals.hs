@@ -12,6 +12,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE PolyKinds #-}
 
 -- | This module declares the type-level naturals for the type signatures of sized vectors,
 -- along with the necessary machinery to manipulate them.
@@ -80,6 +81,12 @@ type family (n :: N) + (m :: N) :: N where
     'Z + m     = m
     ('S n) + m = 'S (n + m)
 
+-- | Type-level subtraction
+type family (n :: N) - (m :: N) :: N where
+    'Z - m          = 'Z
+    n - 'Z          = n
+    ('S n) - ('S m) = n - m
+
 -- | Congruence for @'S@
 congS :: n :~: m -> 'S n :~: 'S m
 congS Refl = Refl
@@ -103,8 +110,8 @@ mulRightId (NS n) = congS $ mulRightId n
 
 -- | Type-level less than
 type family (n :: N) <: (m :: N) :: Bool where
-    n <: 'Z      ='False
-    'Z <: 'S n   ='True
+    n <: 'Z      = 'False
+    'Z <: 'S n   = 'True
     'S n <: 'S m = n <: m
 
 -- | Type of evidence for less than
@@ -114,10 +121,12 @@ type n <? m = n <: m :~:'True
 -- | Proof that if @n :* m@ is @'Z@, then at least one of them is @'Z@. 
 factorZ :: Nat n -> Nat m -> (n :* m) :~: 'Z -> Either (n :~: 'Z) (m :~: 'Z)
 factorZ NZ _ _ = Left Refl
-factorZ _ NZ _ = Right Refl
+factorZ _ NZ _ = Right Refl 
 
 -- | Alias for logical negation.
 type Neg x = x -> Void
+
+type Neq x y = Neg (x :~: y)
 
 -- | ex falso [sequitur] quodlibet
 exFalso :: Void -> a
@@ -127,6 +136,11 @@ exFalso v = case v of {}
 rightOrCancel :: Neg y -> Either x y -> x
 rightOrCancel _ (Left x) = x
 rightOrCancel c (Right y) = exFalso $ c y
+
+-- | If @a \lor b@ and @\lnot a@, then @b@.
+leftOrCancel :: Neg x -> Either x y -> y
+leftOrCancel c (Left y) = exFalso $ c y
+leftOrCancel _ (Right x) = x
 
 -- | If @n <? m@, then @n@ is not @m@.
 ltNeq :: Nat n -> Nat m -> n <? m -> Neg (m :~: n)
@@ -154,6 +168,12 @@ toB BF = False
 (+|) :: Nat n -> Nat m -> Nat (n + m)
 NZ     +| n = n -- the definition of the @+@ family makes everything here typecheck smoothly
 (NS n) +| m = NS (n +| m)
+
+-- | Natural singleton subtraction
+(-|) :: Nat n -> Nat m -> Nat (n - m)
+NZ     -| _      = NZ
+n      -| NZ     = n
+(NS n) -| (NS m) = n -| m
 
 -- | Natural singleton multiplication
 (*|) :: Nat n -> Nat m -> Nat (n :* m)
@@ -224,7 +244,22 @@ lower Dict = h nat where
 -- note that we use type applications here, like @(KnownNat n)
 -- in this case, this is syntactic sugar over writing @Dict :: Dict (KnownNat n)@
 
+addCancel :: Nat n -> (n + m) - n :~: m
+addCancel NZ     = Refl
+addCancel (NS n) = addCancel n
 
+{-
+(/|) :: Nat m -> Nat (n :* m) -> Neq m 'Z -> Nat n
+(/|) m NZ p = NZ \\ rightOrCancel p (factorZ n m Refl)
+(/|) m (NS nat) p = _wN
+-}
+
+
+splitPlus :: forall n m. Dict (KnownNat (n + m)) -> Dict (KnownNat n) -> Dict (KnownNat m)
+splitPlus Dict Dict = h nat where
+    h :: Nat n -> Dict (KnownNat m)
+    h NZ = Dict
+    h (NS n) = splitPlus (lower Dict) (know n)
 
 
 

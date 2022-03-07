@@ -17,9 +17,9 @@
 -- and includes the instances and tools to allow for user-friendly manipulation.
 module Vectors where
 
-import Prelude hiding ( (++), zipWith, take, drop )
-import Data.List hiding ( (++), (\\), zipWith, take, drop, delete )
-import qualified Prelude as P
+import Prelude hiding (splitAt, (++), zipWith, take, drop )
+import Data.List hiding (splitAt, (++), (\\), zipWith, take, drop, delete )
+import qualified Prelude as P hiding (splitAt)
 
 import Control.Applicative
 import Control.Comonad
@@ -213,19 +213,44 @@ splitAt :: forall m n a. Nat n -> Vec (n + m) a -> (Vec n a, Vec m a)
 splitAt n v = (take @m n v, drop n v)
 
 -- | Extract the segment from @n@ until @n + m@ from @v@
-segment :: forall n m k a. KnownNat k => Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
-segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
+segment :: forall k n m a. Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
+segment n m v = take @k m . drop @n n $ v \\ plusAssoc n m k' where
+    e :: (n + m + k) - (n + m) :~: k
+    e = addCancel (n +| m)
+    k' :: Nat k
+    k' = size v -| (n +| m) \\ e
+
+-- | Embed a vector in the segment from @n@ until @n + m@
+putSegment :: forall k n m a. Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a -> Vec (n + m + k) a
+putSegment n m v w = v1 ++ w ++ v3 where
+    (v1, w1) = splitAt @(m + k) @n @a n (v \\ plusAssoc n m k')
+    (_, v3) = splitAt @k @m @a m w1
+    e :: (n + m + k) - (n + m) :~: k
+    e = addCancel (n +| m)
+    k' :: Nat k
+    k' = size v -| (n +| m) \\ e
 
 -- | Take each @m@th element of @v@
-subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
-subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
+subseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a
+subseq _ NZ p _                 = exFalso (p Refl)
+subseq n m p VN                 = VN \\ rightOrCancel p (factorZ n m Refl)
 subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
 
--- | Split vector into @n@ pieces
-split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
-split NZ _ _     = VN
-split n NZ _     = full VN n
-split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
+-- | Embed a vector in the subsequence spanned by the multiples of @m@
+putSubseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
+putSubseq _ _ _ VN _ = VN
+putSubseq _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
+putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w 
+
+-- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
+slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a
+slice n m k l p v = subseq m k p $ segment @l n (m *| k) v \\ know l
+
+-- | Embed a vector in a slice
+putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a -> Vec (n + (m :* k) + l) a
+putSlice n m k l p v w = putSegment @l n (m *| k) v seg' \\ know l where
+    seg' = putSubseq m k p seg w
+    seg = segment @l n (m *| k) v \\ know l
 
 -- | Boolean mask extraction
 mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
@@ -239,19 +264,17 @@ putMask VN BN VN = VN
 putMask (VC _ v) (BC BT bs) (VC y w) = VC y $ putMask v bs w
 putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
 
+-- | Split vector into @n@ pieces
+split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
+split NZ _ _     = VN
+split n NZ _     = full VN n
+split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
+
 -- | Convert a type-level boolean vector to a vector of @Bool@
 toVec :: BVec n xs -> Vec n Bool
 toVec BN = VN
 toVec (BC b bv) = VC (toB b) (toVec bv)
 
--- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
-slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
-slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
-
-{-
-putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec m a -> Vec (n + (m :* k) + l) a -> Vec m a
-putSlice n m k l p v w = _ --subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
--}
 
 -- let us forgo the numpy sentiment of absurd slices
 -- and write a[start:stop]
@@ -264,6 +287,15 @@ vAt f = lens (`get` f) (`put` f)
 -- | Given a mask @bs@, @vMask bs@ is a lens pointing to the the region masked by @bs@.
 vMask :: BVec n bs -> Lens' (Vec n a) (Vec (Count bs) a)
 vMask bs = lens (`mask` bs) (`putMask` bs)
+
+-- | A lens pointing to the segment from @n@ to @n + m@.
+vSeg :: forall n m k a. Nat n -> Nat m -> Lens' (Vec (n + m + k) a) (Vec m a)
+vSeg n m = lens (segment @k n m) (putSegment @k n m)
+
+{-
+vSub :: Nat m -> Lens' (Vec (n :* m) a) (Vec n a)
+vSub m = lens (subseq _ m) _
+-}
 
 -- | Variant of @Control.Lens.Operators.(.=)@ for @ST@.
 (.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
