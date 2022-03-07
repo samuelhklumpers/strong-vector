@@ -1,25 +1,42 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, TypeApplications, AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
 module Vectors where
 
-import Control.Applicative ( liftA2 )
-import Control.Comonad ( Comonad(extract, duplicate) )
-
-import Data.Constraint ( (\\), Dict(..) )
-import Data.Functor.Rep ( distributeRep, Representable(..) )
-import Data.Distributive ( Distributive(distribute) )
-import Data.List ( intercalate )
-
-import Prelude hiding ((++), zipWith, take, drop )
+import Prelude hiding ( (++), zipWith, take, drop )
+import Data.List hiding ( (++), (\\), zipWith, take, drop, delete )
 import qualified Prelude as P
 
+import Control.Applicative
+import Control.Comonad
+import Control.Lens
+import Control.Monad.ST
 
-import Naturals ( type (+), Fin(..), Nat(..), N(S, Z), KnownNat (nat), lower, toFZ, finS, know, toInt )
+import Data.Constraint
+import Data.Distributive
+import Data.Functor.Rep
+import Data.STRef
 
 
--- | The singleton type for vectors
+import Naturals
+
+
+
+-- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
     VC ::  a -> Vec n a -> Vec ('S n) a
@@ -29,17 +46,88 @@ data L = Nil | Cons N L
 -- restricted to N for now
 -- refer to SingKind for generalized stuff.
 
+-- | The vector of booleans type
+data BV = BNil | BCons Bool BV
+
+-- | The singleton type for vectors of booleans
+data BVec n xs where
+    BN :: BVec 'Z 'BNil
+    BC :: Boolean b -> BVec n xs -> BVec ('S n) ('BCons b xs)
+
 -- | The singleton type for lists of natural numbers
 data List xs where
     LN :: List 'Nil
     LC :: Nat n -> List xs -> List ('Cons n xs)
 
-{-
+-- | The list length type family
+type family Length (xs :: [k]) :: N where
+    Length '[]         = 'Z
+    Length (_ ': xs) = 'S (Length xs)
+
+-- | The singleton type for heterogeneous type-level lists of kind @k@
+data HList (xs :: [k]) where
+    HN :: HList '[]
+    HC :: a -> HList xs -> HList (a ': xs)
+
+
+-- | The type for tensors with known dimensions
 data Tensor ix a where
-    TN :: Tensor 'Nil a
+    TV :: Vec n a -> Tensor ('Cons n 'Nil) a
     TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
+
+
+-- | The list product type family
+type family Prod (ns :: L) :: N where
+    Prod 'Nil         = 'S 'Z
+    Prod ('Cons n ns) = n :* Prod ns
+
+-- | The element containment type family for lists
+type family Elem (x :: k) (xs :: [k]) :: Bool where
+    Elem x '[]        = 'False
+    Elem x (x ': _) = 'True
+    Elem x (y ': v) = Elem x v
+
+{-
+-- a block tensor is described by a list of lists of dimensions
+-- so we have 2 levels of stacking operations
+data Block ix a where
+    BLV :: Vec n a -> Block (': (': n '[]) '[]) a   -- a vector is a "column block"
+    BLC :: Vec n (Block ix a) -> Block (': iy ix) a -> Block (': (': n iy) ix) a -- n blocks + a chain of vectors of blocks (of the same shape) -> longer chain of blocks
+    BLS :: Vec n (Block ix a) -> Block (': (': n '[]) ix) a -- n blocks -> block of higher dimension
+
+type Sparse (ix :: HL N) a = M.Map (HList ix) a
+
+type family Sing :: k -> Type
+
+data SomeSing k where
+    SomeSing :: Sing (a :: k) -> SomeSing k
+
+class SingKind k where
+    type Demote k = (r :: Type) | r -> k
+
+    fromSing :: Sing (a :: k) -> Demote k
+    toSing :: Demote k -> SomeSing k
+
+getL :: HList (xs :: HL k) -> Fin (Length xs) -> Demote k
+getL (HC x _) FZ = x
+getL xs (FS fin) = _wd
+-}
+{-
+vSlice ::  forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
+vSlice n m k l p = lens g' p' where
+    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
+    g' = slice n m k l p
+    p' = _
 -}
 
+-- | The boolean counting type family
+type family Count (bs :: BV) :: N where
+    Count 'BNil = 'Z
+    Count ('BCons 'True bs) = 'S (Count bs)
+    Count ('BCons 'False bs) = Count bs
+
+instance Show (BVec n xs) where
+    show v = "{" P.++ intercalate "," (map show $ toList $ toVec v) P.++ "}"
 
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
@@ -104,6 +192,103 @@ get :: Vec n a -> Fin n -> a
 get (VC a _) FZ     = a
 get (VC _ v) (FS f) = get v f
 
+-- | Update the element at the given index
+put :: Vec n a -> Fin n -> a -> Vec n a
+put VN       _      _ = VN
+put (VC _ v) FZ     y = VC y v
+put (VC x v) (FS f) y = VC x (put v f y)
+
+-- | @take n v@ returns a prefix of size @n@ from @v@
+take :: forall m n a. Nat n -> Vec (n + m) a -> Vec n a
+take NZ     _                   = VN
+take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v -- we need to use take @m here to disambiguate m, since it is ambiguous because GHC does not recognize injectivity of n + m over m
+
+-- | @drop n v@ returns the suffix after @n@ elements of @v@
+drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
+drop NZ v = v
+drop (NS k) (VC _ v) = drop k v
+
+-- | @splitAt n v@ returns a tuple where the first element is a prefix of length @n@ of @v@, and the second element is the remainder of @v@.
+splitAt :: forall m n a. Nat n -> Vec (n + m) a -> (Vec n a, Vec m a)
+splitAt n v = (take @m n v, drop n v)
+
+-- | Extract the segment from @n@ until @n + m@ from @v@
+segment :: forall n m k a. KnownNat k => Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
+segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
+
+-- | Take each @m@th element of @v@
+subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
+subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
+subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+
+-- | Split vector into @n@ pieces
+split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
+split NZ _ _     = VN
+split n NZ _     = full VN n
+split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
+
+-- | Boolean mask extraction
+mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
+mask VN BN = VN
+mask (VC a v) (BC BT bv) = VC a (mask v bv)
+mask (VC _ v) (BC BF bv) = mask v bv
+
+-- | Embed a vector in a masked region
+putMask :: Vec n a -> BVec n bs -> Vec (Count bs) a -> Vec n a
+putMask VN BN VN = VN
+putMask (VC _ v) (BC BT bs) (VC y w) = VC y $ putMask v bs w
+putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
+
+-- | Convert a type-level boolean vector to a vector of @Bool@
+toVec :: BVec n xs -> Vec n Bool
+toVec BN = VN
+toVec (BC b bv) = VC (toB b) (toVec bv)
+
+-- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
+slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
+slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
+
+{-
+putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec m a -> Vec (n + (m :* k) + l) a -> Vec m a
+putSlice n m k l p v w = _ --subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
+-}
+
+-- let us forgo the numpy sentiment of absurd slices
+-- and write a[start:stop]
+-- a[start:steps:step]
+
+-- | Analog of 'Control.Lens.At.at' for @Vec n a@
+vAt :: Fin n -> Lens' (Vec n a) a
+vAt f = lens (`get` f) (`put` f)
+
+-- | Given a mask @bs@, @vMask bs@ is a lens pointing to the the region masked by @bs@.
+vMask :: BVec n bs -> Lens' (Vec n a) (Vec (Count bs) a)
+vMask bs = lens (`mask` bs) (`putMask` bs)
+
+-- | Variant of @Control.Lens.Operators.(.=)@ for @ST@.
+(.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
+(.:=) s a r = modifySTRef r (s .~ a)
+
+-- | Flatten a vector of vectors
+concatenate :: Vec n (Vec m a) -> Vec (n :* m) a
+concatenate VN = VN
+concatenate (VC v vs) = v ++ concatenate vs
+
+-- | Flatten a tensor into a vector.
+flatten :: Tensor ix a -> Vec (Prod ix) a
+flatten (TV v) = v \\ mulRightId (size v)
+flatten (TC vs) = concatenate $ fmap flatten vs
+
+{-
+toShape :: Vec (Prod ix) a -> List ix -> Neg (ix :~: 'Nil) -> Tensor ix a
+toShape VN (LC n LN) c          = undefined -- TV VN
+toShape VN (LC n (LC nat li)) c = undefined -- _wy
+toShape (VC a vec) ns c         = undefined -- _wt
+
+reshape :: Tensor ix a -> List ix' -> Neg (ix' :~: 'Nil) -> Prod ix :~: Prod ix' -> Tensor ix' a
+reshape t ns c pf = toShape (flatten t \\ pf) ns c
+-}
+
 -- | Generate a vector by applying a function to a range of indices
 generateN :: Nat n -> (Fin n -> a) -> Vec n a
 generateN NZ _     = VN
@@ -137,16 +322,6 @@ linspace :: Fractional a => a -> a -> Nat n -> Vec n a
 linspace x y n = iterateN n step x where
     step z = z + (y - x) / fromIntegral (toInt n)
 
--- | @take n v@ returns a prefix of size @n@ from @v@
-take :: forall m n a. Nat n -> Vec (n + m) a -> Vec n a
-take NZ     _                   = VN
-take (NS (n :: Nat k)) (VC a v) = VC a $ take @m n v -- we need to use take @m here to disambiguate m, since it is ambiguous because GHC does not recognize injectivity of n + m over m
-
--- | @drop n v@ returns the suffix after @n@ elements of @v@
-drop :: forall n m a. Nat n -> Vec (n + m) a -> Vec m a
-drop NZ v = v
-drop (NS k) (VC _ v) = drop k v
-
 -- | Safely return the first element of a non-empty vector
 head :: Vec ('S n) a -> a
 head (VC a _) = a
@@ -171,7 +346,7 @@ square v = fmap (const v) v
 
 -- | Convert a vector to a list
 toList :: Vec n a -> [a]
-toList = foldl (flip (:)) []
+toList = foldr (:) []
 
 -- | @full x n@ returns a vector of @n@ copies of @x@
 full :: a -> Nat n -> Vec n a
