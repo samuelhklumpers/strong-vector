@@ -1,4 +1,15 @@
-{-# LANGUAGE DataKinds, TypeFamilies, GADTs, TypeApplications, ConstraintKinds, ScopedTypeVariables, FlexibleInstances, TypeOperators, FlexibleContexts, MultiParamTypeClasses, EmptyCase, AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -6,28 +17,31 @@
 -- along with the necessary machinery to manipulate them.
 module Naturals where
 
-import Data.Bifunctor (bimap)
-import Data.Constraint ( Dict(..), (\\), Class (cls),type  (:-) (Sub), mapDict, HasDict )
-import Data.Void (Void)
+import Data.Bifunctor
+import Data.Constraint
+import Data.Void
 import Data.Constraint.Deferrable
-
--- | The boolean type.
-data B = T | F deriving Show
 
 -- | The natural numbers type.
 data N = Z | S N deriving Show
 -- Note that -XDataKinds lifts @N@ to a kind, and @Z@ and @S@ to type constructors
 
+type N0 = 'Z
+type N1 = 'S N0
+type N2 = 'S N1
+type N3 = 'S N2
+type N4 = 'S N3
+type N5 = 'S N4
+type N6 = 'S N5
+type N7 = 'S N6
+type N8 = 'S N7
+type N9 = 'S N8
+
 
 -- | The singleton type for boolean.
 data Boolean b where
-    BT :: Boolean 'T
-    BF :: Boolean 'F
-
--- | Lower a Boolean to a boolean.
-toB :: Boolean b -> B
-toB BT = T
-toB BF = F
+    BT :: Boolean 'True
+    BF :: Boolean 'False
 
 deriving instance Show (Boolean b)
 
@@ -82,18 +96,19 @@ type family (n :: N) :* (m :: N) :: N where
     -- so move this somewhere else
     ('S n) :* m = m + (n :* m)
 
+-- | Proof of @n :* 1 ~ n@
 mulRightId :: Nat n -> n :* 'S 'Z :~: n
 mulRightId NZ = Refl
 mulRightId (NS n) = congS $ mulRightId n
 
 -- | Type-level less than
-type family (n :: N) <: (m :: N) :: B where
-    n <: 'Z      = 'F
-    'Z <: 'S n   = 'T
+type family (n :: N) <: (m :: N) :: Bool where
+    n <: 'Z      ='False
+    'Z <: 'S n   ='True
     'S n <: 'S m = n <: m
 
 -- | Type of evidence for less than
-type n <? m = n <: m :~: 'T
+type n <? m = n <: m :~:'True
 -- can push this to a class or so to make writing this easier for the user
 
 -- | Proof that if @n :* m@ is @'Z@, then at least one of them is @'Z@. 
@@ -130,6 +145,11 @@ toInt :: Nat n -> Int
 toInt NZ = 0
 toInt (NS n) = 1 + toInt n
 
+-- | Lower a Boolean to a boolean.
+toB :: Boolean b -> Bool
+toB BT = True
+toB BF = False
+
 -- | Natural singleton addition
 (+|) :: Nat n -> Nat m -> Nat (n + m)
 NZ     +| n = n -- the definition of the @+@ family makes everything here typecheck smoothly
@@ -161,6 +181,7 @@ toFS :: Nat n -> Fin ('S n)
 toFS NZ     = FZ
 toFS (NS n) = FS $ toFS n
 
+-- | @toFin n m@ points to the @n@th index in an vector of size @n + m + 1@.
 toFin :: Nat n -> Nat m -> Fin (n + 'S m)
 toFin NZ m     = toFZ m
 toFin (NS n) m = finS \\ know (n +| NS m) $ toFin n m
@@ -203,6 +224,11 @@ lower Dict = h nat where
 -- note that we use type applications here, like @(KnownNat n)
 -- in this case, this is syntactic sugar over writing @Dict :: Dict (KnownNat n)@
 
+
+
+
+
+{-
 data ExistNat f where
     Witness :: Nat n -> Dict (f n) -> ExistNat f
 
@@ -233,7 +259,6 @@ minus (NS a :: Nat a) (NS c :: Nat c) l = case minus a c l of
         r' :: Dict (PlusEq a c b)
         r' = plusEqEvidence p -- i don't know exactly why this works
 
-{-
 minus' :: forall a c. Nat a -> Nat c -> ExistNat (PlusEq a c) -> a <? c -- oops you're supposed to use <=? here :)
 minus' NZ NZ _                 = undefined
 minus' NZ (NS _) _             = Refl
@@ -254,5 +279,4 @@ plusRightInj (NS n) Refl = plusRightInj n Refl
 
 plusRightRev :: ('S n + m) :~: 'S k -> (n + m) :~: k
 plusRightRev Refl = Refl
-
 -}
