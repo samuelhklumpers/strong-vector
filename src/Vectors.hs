@@ -3,6 +3,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
@@ -25,6 +26,9 @@ import qualified Data.Map as M
 
 import Naturals
 import Data.Kind (Type)
+import Control.Monad.ST
+import Data.STRef
+
 
 
 -- | The type for vectors with known size
@@ -110,11 +114,47 @@ getL (HC x _) FZ = x
 getL xs (FS fin) = _wd
 -}
 
+
+
 vAt :: Fin n -> Lens' (Vec n a) a
 vAt f = lens (`get` f) (`put` f)
 
+type N0 = 'Z
+type N1 = 'S N0
+type N2 = 'S N1
+type N3 = 'S N2
+type N4 = 'S N3
+type N5 = 'S N4
+type N6 = 'S N5
+type N7 = 'S N6
+type N8 = 'S N7
+type N9 = 'S N8
+
+(.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
+(.:=) s a r = modifySTRef r (s .~ a)
+
+test :: Vec N4 Int
+test = runST $ do
+    v <- newSTRef $ full (1 :: Int) (nat :: Nat N4)
+    
+    let w = full (3 :: Int) (nat :: Nat N2)
+    let m = BC BF $ BC BT $ BC BF $ BC BT BN
+
+    v & vAt FZ  .:= 2
+    v & vMask m .:= w
+
+    readSTRef v
+
+vMask :: BVec n bs -> Lens' (Vec n a) (Vec (Count bs) a)
+vMask bs = lens (`mask` bs) (`putMask` bs)
+
+{-
 vSlice ::  forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
-vSlice = _
+vSlice n m k l p = lens g' p' where
+    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
+    g' = slice n m k l p
+    p' = _
+-}
 
 flatten :: Tensor ix a -> Vec (Prod ix) a
 flatten (TV v) = v \\ mulRightId (size v)
@@ -236,6 +276,11 @@ putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
 slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
 slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
+
+{-
+putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec m a -> Vec (n + (m :* k) + l) a -> Vec m a
+putSlice n m k l p v w = _ --subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
+-}
 
 -- let us forgo the numpy sentiment of absurd slices
 -- and write a[start:stop]
