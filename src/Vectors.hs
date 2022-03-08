@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -33,6 +32,7 @@ import Data.STRef
 
 
 import Naturals
+import Data.Void
 
 
 
@@ -86,6 +86,40 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x '[]        = 'False
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
+
+
+
+type family Pred (n :: N) :: N where
+    Pred 'Z     = 'Z
+    Pred ('S n) = n
+
+type family Ok (n :: N) :: * where
+    Ok 'Z     = Void
+    Ok ('S n) = ()
+
+data F n = InF (Ok n) | UpF (Ok n, F (Pred n))
+
+type family IsInF (i :: F n) :: Bool where
+    IsInF ('InF _) = 'True
+    IsInF ('UpF _) = 'False
+
+type family DownF (i :: F ('S n)) :: F n where
+    DownF ('UpF '(_, f)) = f
+
+type family ITE (i :: Bool) (t :: k) (e :: k) :: k where
+    ITE 'True  t _ = t
+    ITE 'False _ e = e
+
+type family Get (xs :: [k]) (i :: F (Length xs)) :: k where
+    Get (x ': ys) f = ITE (IsInF f) x (Get ys (DownF f))
+
+data FFin (n :: N) (i :: F n) where
+    FFZ :: FFin ('S n) ('InF @('S n) '())
+    FFS :: FFin ('S n) f -> FFin ('S ('S n)) ('UpF '( '(), f))
+
+getH :: HList xs -> FFin (Length xs) i -> Get xs i 
+getH (HC a _) FFZ = a
+getH (HC _ hl) (FFS ff) = getH hl ff
 
 {-
 -- a block tensor is described by a list of lists of dimensions
@@ -306,10 +340,12 @@ concatenate :: Vec n (Vec m a) -> Vec (n :* m) a
 concatenate VN = VN
 concatenate (VC v vs) = v ++ concatenate vs
 
+{-
 -- | Flatten a tensor into a vector.
 flatten :: Tensor ix a -> Vec (Prod ix) a
 flatten (TV v) = v \\ mulRightId (size v)
 flatten (TC vs) = concatenate $ fmap flatten vs
+-}
 
 {-
 toShape :: Vec (Prod ix) a -> List ix -> Neg (ix :~: 'Nil) -> Tensor ix a

@@ -26,23 +26,16 @@ instance (Arbitrary a, Arbitrary (Vec n a)) => Arbitrary (Vec ('S n) a) where
 
 type Vec4 = Vec N4
 
-one = NS NZ
-two = one +| one
-three = one +| two
-four = two *| two
-five = two +| three
-six = two *| three
-
 zeroF :: Fin N4
-zeroF = toFin NZ three
-oneF = toFin one two
-twoF = toFin two one
-threeF = toFin three NZ
+zeroF = toFin NZ na3
+oneF = toFin na1 na2
+twoF = toFin na2 na2
+threeF = toFin na3 NZ
 
-enum6 = enumFin six
+enum6 = enumFin na6
 
-f1o6 = toFin one four
-f3o6 = toFin three two
+f1o6 = toFin na1 na4
+f3o6 = toFin na3 na2
 
 sliceAndMaskResult = VC f1o6 (VC f3o6 VN)
 
@@ -74,12 +67,16 @@ maskAssignResult :: Vec N4 Int
 maskAssignResult = VC 2 $ VC 3 $ VC 1 $ VC 3 VN
 
 
+theHL = HC n0 $ HC n1 $ HC n2 HN
+theIX = FFS (FFZ @N1) 
+
 
 unitTests = test [ 
-        "indexing enumFin returns the index"  ~: (get (enumFin four) twoF) ~=? twoF,
-        "slicing [0..5][1:2:2] = [1,3] "      ~: slice one two two one Refl enum6 ~=? sliceAndMaskResult,
+        "indexing enumFin returns the index"  ~: (get (enumFin na4) twoF) ~=? twoF,
+        "slicing [0..5][1:2:2] = [1,3] "      ~: slice na1 na2 na2 na1 Refl enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]" ~: mask enum6 theMask ~=? sliceAndMaskResult,
-        "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult
+        "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
+        "[0,1,2][1] == 1 (but different)" ~: getH theHL theIX ~=? n1
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
 

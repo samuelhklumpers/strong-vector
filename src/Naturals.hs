@@ -13,6 +13,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
 -- | This module declares the type-level naturals for the type signatures of sized vectors,
 -- along with the necessary machinery to manipulate them.
@@ -22,10 +24,22 @@ import Data.Bifunctor
 import Data.Constraint
 import Data.Void
 import Data.Constraint.Deferrable
+import Unsafe.Coerce
 
 -- | The natural numbers type.
 data N = Z | S N deriving Show
 -- Note that -XDataKinds lifts @N@ to a kind, and @Z@ and @S@ to type constructors
+
+n0 = Z
+n1 = S n0
+n2 = S n1
+n3 = S n2
+n4 = S n3
+n5 = S n4
+n6 = S n5
+n7 = S n6
+n8 = S n7
+n9 = S n8
 
 type N0 = 'Z
 type N1 = 'S N0
@@ -37,6 +51,18 @@ type N6 = 'S N5
 type N7 = 'S N6
 type N8 = 'S N7
 type N9 = 'S N8
+
+na0 = NZ
+na1 = NS na0
+na2 = NS na1
+na3 = NS na2
+na4 = NS na3
+na5 = NS na4
+na6 = NS na5
+na7 = NS na6
+na8 = NS na7
+na9 = NS na8
+
 
 
 -- | The singleton type for boolean.
@@ -103,10 +129,22 @@ type family (n :: N) :* (m :: N) :: N where
     -- so move this somewhere else
     ('S n) :* m = m + (n :* m)
 
+type family DivH (k :: N) (m :: N) (n :: N) (j :: N) :: N where
+    -- thx agda-stdlib
+    DivH k m 'Z     j      = k
+    DivH k m ('S n) 'Z     = DivH ('S k) m n m
+    DivH k m ('S n) ('S j) = DivH k      m n j
+
+type family Div (n :: N) (m :: N) :: N where
+    Div n ('S m) = DivH 'Z m n m
+
+
+{-
 -- | Proof of @n :* 1 ~ n@
 mulRightId :: Nat n -> n :* 'S 'Z :~: n
 mulRightId NZ = Refl
 mulRightId (NS n) = congS $ mulRightId n
+-}
 
 -- | Type-level less than
 type family (n :: N) <: (m :: N) :: Bool where
@@ -115,13 +153,13 @@ type family (n :: N) <: (m :: N) :: Bool where
     'S n <: 'S m = n <: m
 
 -- | Type of evidence for less than
-type n <? m = n <: m :~:'True
+type n <? m = n <: m :~: 'True
 -- can push this to a class or so to make writing this easier for the user
 
 -- | Proof that if @n :* m@ is @'Z@, then at least one of them is @'Z@. 
 factorZ :: Nat n -> Nat m -> (n :* m) :~: 'Z -> Either (n :~: 'Z) (m :~: 'Z)
 factorZ NZ _ _ = Left Refl
-factorZ _ NZ _ = Right Refl 
+factorZ _ NZ _ = Right Refl
 
 -- | Alias for logical negation.
 type Neg x = x -> Void
@@ -244,15 +282,40 @@ lower Dict = h nat where
 -- note that we use type applications here, like @(KnownNat n)
 -- in this case, this is syntactic sugar over writing @Dict :: Dict (KnownNat n)@
 
-addCancel :: Nat n -> (n + m) - n :~: m
+addCancel :: forall n m. Nat n -> (n + m) - n :~: m
 addCancel NZ     = Refl
 addCancel (NS n) = addCancel n
 
+data Dec p where
+    Yes :: p -> Dec p
+    No :: Neg p -> Dec p
+
+(<|) :: Nat n -> Nat m -> Dec (n <? m)
+_ <| NZ          = No \case
+NZ <| (NS _)     = Yes Refl
+(NS n) <| (NS m) = n <| m
+
+
 {-
-(/|) :: Nat m -> Nat (n :* m) -> Neq m 'Z -> Nat n
-(/|) m NZ p = NZ \\ rightOrCancel p (factorZ n m Refl)
-(/|) m (NS nat) p = _wN
+bla :: Nat m -> Nat (n :* m) -> (n :* m) <? m -> n :~: 'Z
+bla (NS _) NZ Refl = Refl
+bla (NS n) (NS nat) Refl = _wv
 -}
+
+
+helper0 :: Nat (n + 'Z) -> Nat n
+helper0 = unsafeCoerce
+
+helper1 :: Nat ('S 'Z :* n) -> Nat n
+helper1 = unsafeCoerce
+
+helper2 :: forall n m. Nat m -> Nat ('S n :* m) -> Nat (n :* m)
+helper2 m nm = nm -| m \\ addCancel @m @(n :* m) m
+
+divide :: forall n m. Nat m -> Nat (n :* m) -> Neq m 'Z -> Nat n
+divide m nm p = case nm <| m of
+    Yes _ -> unsafeCoerce NZ
+    No _ ->  unsafeCoerce $ NS $ unsafeCoerce $ divide m (unsafeCoerce $ nm -| m) p
 
 
 splitPlus :: forall n m. Dict (KnownNat (n + m)) -> Dict (KnownNat n) -> Dict (KnownNat m)
