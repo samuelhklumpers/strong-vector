@@ -28,16 +28,23 @@ instance (Arbitrary a, Arbitrary (Vec n a)) => Arbitrary (Vec ('S n) a) where
 type Vec4 = Vec N4
 
 zeroF :: Fin N4
+oneF :: Fin ('S ('S N2))
+twoF :: Fin ('S ('S ('S N1)))
+threeF :: Fin ('S ('S ('S ('S 'Z))))
 zeroF = toFin NZ na3
 oneF = toFin na1 na2
 twoF = toFin na2 na1
 threeF = toFin na3 NZ
 
+enum6 :: Vec N6 (Fin N6)
 enum6 = enumFin na6
 
+f1o6 :: Fin ('S ('S N4))
+f3o6 :: Fin ('S ('S ('S ('S N2))))
 f1o6 = toFin na1 na4
 f3o6 = toFin na3 na2
 
+sliceAndMaskResult :: Vec ('S ('S 'Z)) (Fin ('S ('S N4)))
 sliceAndMaskResult = VC f1o6 (VC f3o6 VN)
 
 
@@ -48,14 +55,14 @@ propertyTestLaws :: Laws -> SpecWith ()
 propertyTestLaws (Laws className properties) =
   describe className $
   traverse_ (\(name, p) -> it name (property p)) $
-  properties 
+  properties
 
 
 
 maskAssignTest :: Vec N4 Int
 maskAssignTest = runST $ do
     v <- newSTRef $ full (1 :: Int) (nat :: Nat N4)
-    
+
     let w = full (3 :: Int) (nat :: Nat N2)
     let m = BC BF $ BC BT $ BC BF $ BC BT BN
 
@@ -68,18 +75,27 @@ maskAssignResult :: Vec N4 Int
 maskAssignResult = VC 2 $ VC 3 $ VC 1 $ VC 3 VN
 
 
+f0o3 = toFin na0 na2
+f1o3 = toFin na1 na1
+f2o3 = toFin na2 na0
+
 theHL = HC n0 $ HC n1 $ HC n2 HN
 theHL' = HC na0 $ HC na1 $ HC na2 HN
-theIX = FFS (FFZ @N1) 
 
+theIX = FFS (FFZ @N1)
+theIX' = FFS (FFS FFZ)
 
-unitTests = test [ 
-        "indexing enumFin returns the index"                 ~: (get (enumFin na4) twoF) ~=? twoF,
+fhl = HC f0o3 $ HC f1o3 $ HC f2o3 HN
+fhl' = HC f0o3 $ HC f2o3 $ HC f1o3 HN
+
+unitTests = test [
+        "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 (\case) enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
         "[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
-        "[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1
+        "[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
+        "swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl'
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
 

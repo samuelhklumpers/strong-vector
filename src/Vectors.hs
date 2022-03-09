@@ -60,6 +60,16 @@ data HList (xs :: [k]) where
     HN :: HList '[]
     HC :: a -> HList xs -> HList (a ': xs)
 
+instance Eq (HList '[]) where
+    HN == HN = True
+
+deriving instance (Eq a, Eq (HList xs)) => Eq (HList (a ': xs))
+
+instance Show (HList '[]) where
+    show HN = "HN"
+
+deriving instance (Show a, Show (HList xs)) => Show (HList (a ': xs))
+
 
 -- | The type for tensors with known dimensions
 data Tensor ix a where
@@ -110,14 +120,8 @@ type family Put (xs :: [k]) (i :: F (Length xs)) (x :: k) :: [k] where
 type family Put2 (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) (x :: k) (y :: k) :: [k] where
     Put2 (x ': ys) i j x' y' = ITE (IsInF i) (x' ': ITE (IsInF j) ys (Put ys (DownF j) y')) (ITE (IsInF j) (y' : Put ys (DownF i) x') (x ': Put2 ys (DownF i) (DownF j) x' y'))
 
-{-
-type family LiftPut (xs :: [k]) (i :: F (Length xs)) (x :: k) (j :: F (Length xs)) :: F (Length (Put xs i x)) where
-    LiftPut (x ': xs) i x' j = ITE (IsInF j) (InF '()) (UpF '( '(), LiftPut xs (DownF i) x' (DownF j)))
--}
-
 type family Swap (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) :: [k] where
     Swap xs i j = Put2 xs j i (Get xs i) (Get xs j)
-
 
 data FFin (n :: N) (i :: F n) where
     FFZ :: FFin ('S n) ('InF @('S n) '())
@@ -137,7 +141,10 @@ putH2 (HC _ hl) FFZ (FFS ff) x y = HC x $ putH hl ff y
 putH2 (HC _ hl) (FFS ff) FFZ x y = HC y $ putH hl ff x
 putH2 (HC a hl) (FFS ff) (FFS ff') x y = HC a $ putH2 hl ff ff' x y
 
-swapH :: forall xs i j. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> HList (Swap xs i j)
+put2CastSwap :: forall k (xs :: [k]) i j. HList (Put2 xs j i (Get xs i) (Get xs j)) -> HList (Swap xs i j)
+put2CastSwap = unsafeCoerce
+
+swapH :: forall (xs :: [*]) i j. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> HList (Swap xs i j)
 swapH hs i j = putH2 @xs @j @i @(Get xs i) @(Get xs j) hs j i (getH hs i) (getH hs j)
 
 
