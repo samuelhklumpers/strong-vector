@@ -12,12 +12,13 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
 module Vectors where
 
-import Prelude hiding (splitAt, (++), zipWith, take, drop )
+import Prelude hiding (splitAt, (++), zipWith, take, drop, (:) )
 import Data.List hiding (splitAt, (++), (\\), zipWith, take, drop, delete )
 import qualified Prelude as P hiding (splitAt)
 
@@ -40,6 +41,12 @@ import Naturals
 data Vec n a where
     VN :: Vec 'Z a
     VC ::  a -> Vec n a -> Vec ('S n) a
+
+-- Richard test zone
+mat :: Vec 'Z (Vec ('S ('S 'Z)) Int)
+mat = VN
+
+-- End of Richards test zone
 
 -- | The list of natural numbers type
 data L = Nil | Cons N L
@@ -72,14 +79,93 @@ data HList (xs :: [k]) where
 
 -- | The type for tensors with known dimensions
 data Tensor ix a where
-    TV :: Vec n a -> Tensor ('Cons n 'Nil) a
-    TC :: Vec n (Tensor ix a) -> Tensor ('Cons n ix) a
+    TV :: Vec n a -> Tensor (n ': '[]) a
+    TC :: Vec n (Tensor ix a) -> Tensor (n ': ix) a
 
+instance Functor (Tensor ix) where
+    fmap f (TV v) = TV (fmap f v)
+    fmap f (TC v) = TC (fmap (fmap f) v)
+
+instance Distributive (Tensor ix) where
+    distribute = distributeRep
+
+type family FinMap (l :: [N]) :: [*] where
+    FinMap '[]         = '[]
+    FinMap (n ': l') = Fin n ': FinMap l'
+
+instance Representable (Tensor ix) where
+    type Rep (Tensor ix) = HList (FinMap ix)
+
+    tabulate = undefined
+    index = undefined
+
+vec2 :: Int -> Int -> Vec N2 Int
+vec2 a b = VC a (VC b VN)
+
+myTensor11 :: Tensor (N1 ': N1 ': '[]) Int -- 1x1 tensor equals 1x1 matrix
+myTensor11 = TC $ VC (TV (VC 5 VN)) VN
+
+myTensor2 :: Tensor (N2 ': '[]) Int  -- 2 tensor equals 2-vector
+myTensor2 = TV (vec2 5 8)
+
+myTensor22 :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
+myTensor22 = TC $ VC (TV (vec2 1 2)) (VC (TV $ vec2 3 4) VN)
+
+
+
+-- | Return the transpose of a matrix
+transpose :: KnownNat m => Vec n (Vec m a) -> Vec m (Vec n a)
+transpose = transpose' nat
+    where transpose' :: Nat m -> Vec n (Vec m a) -> Vec m (Vec n a)
+          transpose' m VN                = full VN m -- We want a vector of length m with VN elements
+          transpose' NZ (VC VN _)         = VN
+          transpose' (NS m') v@(VC (VC _ _) _) = VC (Vectors.head <$> v) (transpose' m' (Vectors.tail <$> v))
+
+transposeT :: Tensor ix a -> Nat i -> Nat j -> Tensor (Swap ix i j) a
+transposeT x i j = tabulate (swap'' (Data.Functor.Rep.index x) i j)
+
+type family Get (l :: [k]) (i :: N) :: k where
+    Get '[] i             = N0 -- TODO; Is there a type level "undefined"?
+    Get (n ': l) N0     = n
+    Get (n ': l) ('S i') = Get l i'
+
+type family Put (l :: [k]) (i :: N) (n :: k) :: [k] where
+    Put '[] i n = '[] -- TODO, shouldn't happen?
+    Put (n' ': l) N0 n = n ': l
+    Put (n' ': l) ('S i') n = n' ': Put l i' n
+
+type family Swap (l :: [k]) (i :: N) (j :: N) :: [k] where
+    Swap '[] i j = '[] -- Do we want to restrict i and j somehow?
+    Swap l i j = Put (Put l j (Get l i)) i (Get l j)
+
+
+
+
+get'' :: HList xs -> Nat i -> Get xs i
+get'' HN _             = undefined -- Good?
+get'' (HC x _) NZ      = x
+get'' (HC _ xs) (NS n) = get'' xs n
+
+put'' :: forall xs i k . HList xs -> Nat i -> k -> HList (Put xs i k)
+put'' HN _ _             = undefined -- Good?
+put'' (HC _ xs) NZ y     = HC y xs
+put'' (HC x xs) (NS n) y = HC x $ put'' xs n y
+
+swap'' :: forall xs i j . HList xs -> Nat i -> Nat j -> HList (Swap xs i j)
+swap'' xs i j = put'' (put'' xs j (get'' xs i)) i (get'' xs j)
+
+-- Suppose we transpose Index 0 and 1 (0-indexed) of myTensor22
+
+myTensor22' :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
+myTensor22' = TC $ VC (TV (vec2 5 6)) (VC (TV $ vec2 7 8) VN)
+
+myTensor222 :: Tensor (N2 ': N2 ': N2 ': '[]) Int -- 2x2x2 tensor
+myTensor222 = TC $ VC myTensor22 (VC myTensor22' VN)
 
 -- | The list product type family
-type family Prod (ns :: L) :: N where
-    Prod 'Nil         = 'S 'Z
-    Prod ('Cons n ns) = n :* Prod ns
+type family Prod (ns :: [N]) :: N where
+    Prod '[]         = 'S 'Z
+    Prod (n ': ns) = n :* Prod ns
 
 -- | The element containment type family for lists
 type family Elem (x :: k) (xs :: [k]) :: Bool where
@@ -240,7 +326,7 @@ subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
 putSubseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
 putSubseq _ _ _ VN _ = VN
 putSubseq _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
-putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w 
+putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w
 
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
 slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a
@@ -367,6 +453,12 @@ zipWith :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
 zipWith _ VN       VN = VN
 zipWith f (VC a v) (VC b w) = VC (f a b) (zipWith f v w)
 
+foldRow :: (a -> b -> b) -> b -> Vec n (Vec m a) -> Vec n b
+foldRow f acc = fmap (foldr f acc)
+
+foldCol :: KnownNat m => (a -> b -> b) -> b -> Vec n (Vec m a) -> Vec m b
+foldCol f acc v = foldr f acc <$> Vectors.transpose v
+
 -- | Return the diagonal of a square matrix
 diag :: Vec n (Vec n a) -> Vec n a
 diag v = zipWith get v (enumFin $ size v)
@@ -389,6 +481,11 @@ full a (NS n) = VC a (full a n)
 (++) :: Vec n a -> Vec m a -> Vec (n + m) a
 VN     ++ w = w
 VC x v ++ w = VC x (v ++ w)
+
+-- | Add element to start of vector
+cons :: a -> Vec n a -> Vec ('S n) a
+x `cons` VN = VC x VN
+x `cons` v  = VC x v
 
 -- | Return the number of elements of a vector
 size :: Vec n a -> Nat n
