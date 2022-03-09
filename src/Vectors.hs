@@ -1,16 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
@@ -33,6 +22,8 @@ import Data.STRef
 
 import Naturals
 import Data.Void
+import GHC.Base (Any)
+import Unsafe.Coerce (unsafeCoerce)
 
 
 
@@ -113,13 +104,43 @@ type family ITE (i :: Bool) (t :: k) (e :: k) :: k where
 type family Get (xs :: [k]) (i :: F (Length xs)) :: k where
     Get (x ': ys) f = ITE (IsInF f) x (Get ys (DownF f))
 
+type family Put (xs :: [k]) (i :: F (Length xs)) (x :: k) :: [k] where
+    Put (x ': ys) f x' = ITE (IsInF f) (x' ': ys) (x ': Put ys (DownF f) x')
+
+type family Put2 (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) (x :: k) (y :: k) :: [k] where
+    Put2 (x ': ys) i j x' y' = ITE (IsInF i) (x' ': ITE (IsInF j) ys (Put ys (DownF j) y')) (ITE (IsInF j) (y' : Put ys (DownF i) x') (x ': Put2 ys (DownF i) (DownF j) x' y'))
+
+{-
+type family LiftPut (xs :: [k]) (i :: F (Length xs)) (x :: k) (j :: F (Length xs)) :: F (Length (Put xs i x)) where
+    LiftPut (x ': xs) i x' j = ITE (IsInF j) (InF '()) (UpF '( '(), LiftPut xs (DownF i) x' (DownF j)))
+-}
+
+type family Swap (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) :: [k] where
+    Swap xs i j = Put2 xs j i (Get xs i) (Get xs j)
+
+
 data FFin (n :: N) (i :: F n) where
     FFZ :: FFin ('S n) ('InF @('S n) '())
     FFS :: FFin ('S n) f -> FFin ('S ('S n)) ('UpF '( '(), f))
 
-getH :: HList xs -> FFin (Length xs) i -> Get xs i 
+getH :: HList xs -> FFin (Length xs) i -> Get xs i
 getH (HC a _) FFZ = a
 getH (HC _ hl) (FFS ff) = getH hl ff
+
+putH :: HList xs -> FFin (Length xs) i -> x -> HList (Put xs i x)
+putH (HC _ hl) FFZ x'      = HC x' hl
+putH (HC x hl) (FFS ff) x' = HC x $ putH hl ff x'
+
+putH2 :: forall xs i j x y. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> x -> y -> HList (Put2 xs i j x y)
+putH2 (HC _ hl) FFZ FFZ x _ = HC x hl
+putH2 (HC _ hl) FFZ (FFS ff) x y = HC x $ putH hl ff y
+putH2 (HC _ hl) (FFS ff) FFZ x y = HC y $ putH hl ff x
+putH2 (HC a hl) (FFS ff) (FFS ff') x y = HC a $ putH2 hl ff ff' x y
+
+swapH :: forall xs i j. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> HList (Swap xs i j)
+swapH hs i j = putH2 @xs @j @i @(Get xs i) @(Get xs j) hs j i (getH hs i) (getH hs j)
+
+
 
 {-
 -- a block tensor is described by a list of lists of dimensions
@@ -274,7 +295,7 @@ subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
 putSubseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
 putSubseq _ _ _ VN _ = VN
 putSubseq _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
-putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w 
+putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w
 
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
 slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a

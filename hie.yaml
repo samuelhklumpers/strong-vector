@@ -1,7 +1,7 @@
 cradle:
   stack:
-    - path: "././"
+    - path: "./src"
       component: "strong-vector:lib"
 
     - path: "./test"
-      component: "strong-vector:test:test"
+      component: "strong-vector:test:strong-vector-test"

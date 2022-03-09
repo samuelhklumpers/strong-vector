@@ -1,20 +1,5 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BlockArguments #-}
 
 -- | This module declares the type-level naturals for the type signatures of sized vectors,
 -- along with the necessary machinery to manipulate them.
@@ -27,9 +12,20 @@ import Data.Constraint.Deferrable
 import Unsafe.Coerce
 
 -- | The natural numbers type.
-data N = Z | S N deriving Show
+data N = Z | S N deriving (Eq, Show)
 -- Note that -XDataKinds lifts @N@ to a kind, and @Z@ and @S@ to type constructors
 
+
+n0 :: N
+n1 :: N
+n2 :: N
+n3 :: N
+n4 :: N
+n5 :: N
+n6 :: N
+n7 :: N
+n8 :: N
+n9 :: N
 n0 = Z
 n1 = S n0
 n2 = S n1
@@ -51,19 +47,32 @@ type N6 = 'S N5
 type N7 = 'S N6
 type N8 = 'S N7
 type N9 = 'S N8
+type Digit = 'S N9
 
+na0 :: Nat N0
 na0 = NZ
+na1 :: Nat N1
 na1 = NS na0
+na2 :: Nat N2
 na2 = NS na1
+na3 :: Nat N3
 na3 = NS na2
+na4 :: Nat N4
 na4 = NS na3
+na5 :: Nat N5
 na5 = NS na4
+na6 :: Nat N6
 na6 = NS na5
+na7 :: Nat N7
 na7 = NS na6
+na8 :: Nat N8
 na8 = NS na7
+na9 :: Nat N9
 na9 = NS na8
 
 
+type family (n :: N) .| (m :: N) :: N where
+    n .| m = n :* Digit + m
 
 -- | The singleton type for boolean.
 data Boolean b where
@@ -78,6 +87,9 @@ data Nat n where
     NS :: Nat n -> Nat ('S n)
 -- The "singleton" in "singleton type" stems from the fact that for each choice of type parameters, the type has only a single inhabitant,
 -- i.e. is a singleton in the terminology of sets.
+
+deriving instance Eq (Nat n)
+
 
 -- | The finite set type.
 -- Remark that @Fin n@ has @n@ values.
