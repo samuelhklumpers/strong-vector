@@ -122,7 +122,7 @@ transpose = transpose' nat
           transpose' (NS m') v@(VC (VC _ _) _) = VC (Vectors.head <$> v) (transpose' m' (Vectors.tail <$> v))
 
 transposeT :: Tensor ix a -> Nat i -> Nat j -> Tensor (Swap ix i j) a
-transposeT x i j = tabulate (swap'' (Data.Functor.Rep.index x) i j)
+transposeT x i j = undefined -- tabulate (swap'' (Data.Functor.Rep.index x) i j)
 
 type family Get (l :: [k]) (i :: N) :: k where
     Get '[] i             = N0 -- TODO; Is there a type level "undefined"?
@@ -135,23 +135,19 @@ type family Put (l :: [k]) (i :: N) (n :: k) :: [k] where
     Put (n' ': l) ('S i') n = n' ': Put l i' n
 
 type family Swap (l :: [k]) (i :: N) (j :: N) :: [k] where
-    Swap '[] i j = '[] -- Do we want to restrict i and j somehow?
     Swap l i j = Put (Put l j (Get l i)) i (Get l j)
 
-
-
-
-get'' :: HList xs -> Nat i -> Get xs i
+get'' :: forall (xs :: [*]) i. HList xs -> Nat i -> Get xs i
 get'' HN _             = undefined -- Good?
 get'' (HC x _) NZ      = x
 get'' (HC _ xs) (NS n) = get'' xs n
 
-put'' :: forall xs i k . HList xs -> Nat i -> k -> HList (Put xs i k)
+put'' :: forall (xs :: [*]) i x. HList xs -> Nat i -> x -> HList (Put xs i x)
 put'' HN _ _             = undefined -- Good?
 put'' (HC _ xs) NZ y     = HC y xs
 put'' (HC x xs) (NS n) y = HC x $ put'' xs n y
 
-swap'' :: forall xs i j . HList xs -> Nat i -> Nat j -> HList (Swap xs i j)
+swap'' :: forall (xs :: [*]) i j. HList xs -> Nat i -> Nat j -> HList (Swap xs i j)
 swap'' xs i j = put'' (put'' xs j (get'' xs i)) i (get'' xs j)
 
 -- Suppose we transpose Index 0 and 1 (0-indexed) of myTensor22
