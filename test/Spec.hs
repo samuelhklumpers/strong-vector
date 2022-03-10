@@ -5,6 +5,7 @@ module Main where
 
 import Vectors
 import Naturals
+import SwapH
 
 import Test.Hspec
 import Test.HUnit
@@ -44,6 +45,9 @@ f3o6 :: Fin ('S ('S ('S ('S N2))))
 f1o6 = toFin na1 na4
 f3o6 = toFin na3 na2
 
+mfs :: Vec ('S ('S ('S 'Z))) (Fin ('S ('S N4)))
+mfs = VC f1o6 (VC f1o6 (VC f3o6 VN))
+
 sliceAndMaskResult :: Vec ('S ('S 'Z)) (Fin ('S ('S N4)))
 sliceAndMaskResult = VC f1o6 (VC f3o6 VN)
 
@@ -71,6 +75,25 @@ maskAssignTest = runST $ do
 
     readSTRef v
 
+sliceBuzz :: Vec (N9 .| N0) String
+sliceBuzz = runST $ do
+    let na15 = na1 *| naD +| na5
+    let na18 = na1 *| naD +| na8
+    let na30 = na3 *| naD
+    let na90 = na9 *| naD
+
+    v <- newSTRef $ show . finToInt <$> enumFin na90
+
+    let fizz = full "F" na30
+    let buzz = full "B" na18
+    let fizzBuzz = full "FB" na6
+
+    v & vSlice na0 na30 na3 na0 .:= fizz -- yeah looks just like numpy!!
+    v & vSlice na0 na18 na5 na0 .:= buzz -- :(
+    v & vSlice na0 na6 na15 na0 .:= fizzBuzz
+
+    readSTRef v
+
 maskAssignResult :: Vec N4 Int
 maskAssignResult = VC 2 $ VC 3 $ VC 1 $ VC 3 VN
 
@@ -90,23 +113,29 @@ fhl' = HC f0o3 $ HC f2o3 $ HC f1o3 HN
 
 unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
-        "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 (\case) enum6 ~=? sliceAndMaskResult,
+        "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
         "[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         "[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
-        "swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl'
+        "swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',
+        "[0..5][[1,1,3]] == [1,1,3]"                         ~: multiGet enum6 mfs ~=? mfs
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
 
 main :: IO ()
-main = hspec $ do
-  describe "unit tests" $
-    fromHUnitTest unitTests
+main = do
+    print "sliceBuzz:"
+    print $ unwords $ toList sliceBuzz
 
-  describe "Vec" $
-    propertyTestLaws (functorLaws (Proxy @Vec4)) *>
-    propertyTestLaws (applicativeLaws (Proxy @Vec4)) *>
-    propertyTestLaws (monadLaws (Proxy @Vec4)) *>
-    propertyTestLaws (foldableLaws (Proxy @Vec4)) *>
-    propertyTestLaws (traversableLaws (Proxy @Vec4))
+
+    hspec $ do
+        describe "unit tests" $
+            fromHUnitTest unitTests
+
+        describe "Vec" $
+            propertyTestLaws (functorLaws (Proxy @Vec4)) *>
+            propertyTestLaws (applicativeLaws (Proxy @Vec4)) *>
+            propertyTestLaws (monadLaws (Proxy @Vec4)) *>
+            propertyTestLaws (foldableLaws (Proxy @Vec4)) *>
+            propertyTestLaws (traversableLaws (Proxy @Vec4))

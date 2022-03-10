@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
@@ -21,10 +22,6 @@ import Data.STRef
 
 
 import Naturals
-import Data.Void
-import GHC.Base (Any)
-import Unsafe.Coerce (unsafeCoerce)
-
 
 
 -- | The type for vectors with known size
@@ -52,11 +49,12 @@ data List xs where
 
 -- | The list length type family
 type family Length (xs :: [k]) :: N where
-    Length '[]         = 'Z
+    Length '[]       = 'Z
     Length (_ ': xs) = 'S (Length xs)
 
+
 -- | The singleton type for heterogeneous type-level lists of kind @k@
-data HList (xs :: [k]) where
+data HList (xs :: [*]) where
     HN :: HList '[]
     HC :: a -> HList xs -> HList (a ': xs)
 
@@ -89,66 +87,6 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x (y ': v) = Elem x v
 
 
-
-type family Pred (n :: N) :: N where
-    Pred 'Z     = 'Z
-    Pred ('S n) = n
-
-type family Ok (n :: N) :: * where
-    Ok 'Z     = Void
-    Ok ('S n) = ()
-
-data F n = InF (Ok n) | UpF (Ok n, F (Pred n))
-
-type family IsInF (i :: F n) :: Bool where
-    IsInF ('InF _) = 'True
-    IsInF ('UpF _) = 'False
-
-type family DownF (i :: F ('S n)) :: F n where
-    DownF ('UpF '(_, f)) = f
-
-type family ITE (i :: Bool) (t :: k) (e :: k) :: k where
-    ITE 'True  t _ = t
-    ITE 'False _ e = e
-
-type family Get (xs :: [k]) (i :: F (Length xs)) :: k where
-    Get (x ': ys) f = ITE (IsInF f) x (Get ys (DownF f))
-
-type family Put (xs :: [k]) (i :: F (Length xs)) (x :: k) :: [k] where
-    Put (x ': ys) f x' = ITE (IsInF f) (x' ': ys) (x ': Put ys (DownF f) x')
-
-type family Put2 (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) (x :: k) (y :: k) :: [k] where
-    Put2 (x ': ys) i j x' y' = ITE (IsInF i) (x' ': ITE (IsInF j) ys (Put ys (DownF j) y')) (ITE (IsInF j) (y' : Put ys (DownF i) x') (x ': Put2 ys (DownF i) (DownF j) x' y'))
-
-type family Swap (xs :: [k]) (i :: F (Length xs)) (j :: F (Length xs)) :: [k] where
-    Swap xs i j = Put2 xs j i (Get xs i) (Get xs j)
-
-data FFin (n :: N) (i :: F n) where
-    FFZ :: FFin ('S n) ('InF @('S n) '())
-    FFS :: FFin ('S n) f -> FFin ('S ('S n)) ('UpF '( '(), f))
-
-getH :: HList xs -> FFin (Length xs) i -> Get xs i
-getH (HC a _) FFZ = a
-getH (HC _ hl) (FFS ff) = getH hl ff
-
-putH :: HList xs -> FFin (Length xs) i -> x -> HList (Put xs i x)
-putH (HC _ hl) FFZ x'      = HC x' hl
-putH (HC x hl) (FFS ff) x' = HC x $ putH hl ff x'
-
-putH2 :: forall xs i j x y. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> x -> y -> HList (Put2 xs i j x y)
-putH2 (HC _ hl) FFZ FFZ x _ = HC x hl
-putH2 (HC _ hl) FFZ (FFS ff) x y = HC x $ putH hl ff y
-putH2 (HC _ hl) (FFS ff) FFZ x y = HC y $ putH hl ff x
-putH2 (HC a hl) (FFS ff) (FFS ff') x y = HC a $ putH2 hl ff ff' x y
-
-put2CastSwap :: forall k (xs :: [k]) i j. HList (Put2 xs j i (Get xs i) (Get xs j)) -> HList (Swap xs i j)
-put2CastSwap = unsafeCoerce
-
-swapH :: forall (xs :: [*]) i j. HList xs -> FFin (Length xs) i -> FFin (Length xs) j -> HList (Swap xs i j)
-swapH hs i j = putH2 @xs @j @i @(Get xs i) @(Get xs j) hs j i (getH hs i) (getH hs j)
-
-
-
 {-
 -- a block tensor is described by a list of lists of dimensions
 -- so we have 2 levels of stacking operations
@@ -174,13 +112,7 @@ getL :: HList (xs :: HL k) -> Fin (Length xs) -> Demote k
 getL (HC x _) FZ = x
 getL xs (FS fin) = _wd
 -}
-{-
-vSlice ::  forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
-vSlice n m k l p = lens g' p' where
-    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
-    g' = slice n m k l p
-    p' = _
--}
+
 
 -- | The boolean counting type family
 type family Count (bs :: BV) :: N where
@@ -293,26 +225,40 @@ putSegment n m v w = v1 ++ w ++ v3 where
     k' = size v -| (n +| m) \\ e
 
 -- | Take each @m@th element of @v@
-subseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a
-subseq _ NZ p _                 = exFalso (p Refl)
-subseq n m p VN                 = VN \\ rightOrCancel p (factorZ n m Refl)
-subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+subseq :: forall n m a. m !~ 'Z => Nat n -> Nat m -> Vec (n :* m) a -> Vec n a
+subseq n m = subseq' n m neq
+
+subseq' :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a
+subseq' _ NZ p _                 = exFalso (p Refl)
+subseq' n m p VN                 = VN \\ rightOrCancel p (factorZ n m Refl)
+subseq' (NS n) (NS m) p (VC a v) = VC a $ subseq' n (NS m) p (drop m v)
 
 -- | Embed a vector in the subsequence spanned by the multiples of @m@
-putSubseq :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
-putSubseq _ _ _ VN _ = VN
-putSubseq _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
-putSubseq (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq n (NS m) p (drop m v) w
+putSubseq :: forall n m a. m !~ 'Z => Nat n -> Nat m -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
+putSubseq n m = putSubseq' n m neq
+
+putSubseq' :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
+putSubseq' _ _ _ VN _ = VN
+putSubseq' _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
+putSubseq' (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq' n (NS m) p (drop m v) w
 
 -- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
-slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a
-slice n m k l p v = subseq m k p $ segment @l n (m *| k) v \\ know l
+slice :: forall n m k l a. (k !~ 'Z) => Nat n -> Nat m -> Nat k -> Nat l -> Vec (n + (m :* k) + l) a -> Vec m a
+slice n m k l v = subseq m k $ segment @l n (m *| k) v \\ know l
 
 -- | Embed a vector in a slice
-putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> Neq k 'Z -> Vec (n + (m :* k) + l) a -> Vec m a -> Vec (n + (m :* k) + l) a
-putSlice n m k l p v w = putSegment @l n (m *| k) v seg' \\ know l where
-    seg' = putSubseq m k p seg w
-    seg = segment @l n (m *| k) v \\ know l
+putSlice :: forall n m k l a. k !~ 'Z => Nat n -> Nat m -> Nat k -> Nat l -> Vec (n + (m :* k) + l) a -> Vec m a -> Vec (n + (m :* k) + l) a
+putSlice n m k l v w = putSegment @l n (m *| k) v seg' \\ know l where
+    seg' = putSubseq m k seg w
+    seg = segment @l n (m *| k) v \\ know l -- putSlice is only ever going to look nice if we resort to type division
+
+-- | Given slicing information, return a lens pointing to the specified slice.
+vSlice ::  forall n m k l a. k !~ 'Z => Nat n -> Nat m -> Nat k -> Nat l -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
+vSlice n m k l = lens g' p' where
+    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
+    g' = slice n m k l
+    p' :: Vec ((n + (m :* k)) + l) a -> Vec m a -> Vec ((n + (m :* k)) + l) a
+    p' = putSlice n m k l
 
 -- | Boolean mask extraction
 mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
@@ -325,6 +271,19 @@ putMask :: Vec n a -> BVec n bs -> Vec (Count bs) a -> Vec n a
 putMask VN BN VN = VN
 putMask (VC _ v) (BC BT bs) (VC y w) = VC y $ putMask v bs w
 putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
+
+-- | Multi-indexing; given a vector of indices, return a vector of the indexed values
+multiGet :: Vec n a -> Vec m (Fin n) -> Vec m a
+multiGet v fs = get v <$> fs
+
+-- | Multi-index assignment; given a vector of indices and a vector of values, update a vector at all indices with the provided values. Later values overwrite earlier values.
+multiPut :: Vec n a -> Vec m (Fin n) -> Vec m a -> Vec n a
+multiPut v VN VN = v
+multiPut v (VC f fs) (VC x w) = multiPut (put v f x) fs w
+
+-- | Given a set of indices, return a lens pointing to the elements under the multi-index
+vMulti :: Vec m (Fin n) -> Lens' (Vec n a) (Vec m a)
+vMulti fs = lens (`multiGet` fs) (`multiPut` fs)
 
 -- | Split vector into @n@ pieces
 split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
