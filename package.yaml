@@ -29,6 +29,28 @@ dependencies:
 - lens
 - containers
 
+
+ghc-options:
+- -O0
+
+default-extensions:
+- DataKinds
+- GADTs
+- ScopedTypeVariables
+- FlexibleInstances
+- TypeOperators
+- TypeApplications
+- PolyKinds
+- TypeFamilyDependencies
+- RankNTypes
+- MultiParamTypeClasses
+- StandaloneDeriving
+- BlockArguments
+- ConstraintKinds
+- FlexibleContexts
+- LambdaCase
+- EmptyCase
+
 library:
   source-dirs:  src
   ghc-options:
