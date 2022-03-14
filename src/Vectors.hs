@@ -21,6 +21,8 @@ import Data.STRef
 
 
 import Naturals
+import Defunction
+import Unsafe.Coerce
 
 
 -- | The type for vectors with known size
@@ -56,6 +58,10 @@ type family Length (xs :: [k]) :: N where
 data HList (xs :: [*]) where
     HN :: HList '[]
     HC :: a -> HList xs -> HList (a ': xs)
+
+
+type family Sing :: k -> *
+
 
 instance Eq (HList '[]) where
     HN == HN = True
@@ -264,6 +270,28 @@ mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
 mask VN BN = VN
 mask (VC a v) (BC BT bv) = VC a (mask v bv)
 mask (VC _ v) (BC BF bv) = mask v bv
+
+data SList :: forall a. [a] -> * where
+    SNil :: SList '[]
+    SCons :: forall a (x :: a) (xs :: [a]). Sing (x :: a) -> SList (xs :: [a]) -> SList (x ': xs)  
+
+type instance Sing = Nat
+type instance Sing = Boolean
+type instance Sing = SList
+
+type family SCount (bs :: [Bool]) :: N where
+    SCount '[] = 'Z
+    SCount ('True ': bs) = 'S (SCount bs)
+    SCount ('False ': bs) = SCount bs
+
+type family SLength (bs :: [k]) :: N where
+    SLength '[]       = 'Z
+    SLength (_ ': xs) = 'S (SLength xs)
+
+mask' :: Vec (SLength bs) a -> SList bs -> Vec (SCount bs) a
+mask' VN SNil = VN
+mask' (VC a v) (SCons BT bv) = VC a (mask' v bv)
+mask' (VC _ v) (SCons BF bv) = mask' v bv
 
 -- | Embed a vector in a masked region
 putMask :: Vec n a -> BVec n bs -> Vec (Count bs) a -> Vec n a

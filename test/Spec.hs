@@ -12,7 +12,6 @@ import Test.HUnit
 import Test.Hspec.Contrib.HUnit
 import Test.QuickCheck
 import Test.QuickCheck.Classes.Base
-import Data.Type.Equality
 import Data.Proxy (Proxy (Proxy))
 import Data.Foldable (traverse_)
 import Control.Lens
@@ -97,20 +96,30 @@ sliceBuzz = runST $ do
 maskAssignResult :: Vec N4 Int
 maskAssignResult = VC 2 $ VC 3 $ VC 1 $ VC 3 VN
 
-
+f0o3 :: Fin N3
+f1o3 :: Fin N3
+f2o3 :: Fin N3
 f0o3 = toFin na0 na2
 f1o3 = toFin na1 na1
 f2o3 = toFin na2 na0
 
+theHL :: HList '[N, N, N]
 theHL = HC n0 $ HC n1 $ HC n2 HN
+theHL' :: HList '[Nat N0, Nat N1, Nat N2]
 theHL' = HC na0 $ HC na1 $ HC na2 HN
 
+theIX :: FFin ('S ('S N1)) ('UpF '( '(), 'InF '()))
 theIX = FFS (FFZ @N1)
+
+theIX' :: FFin ('S ('S ('S n))) ('UpF '( '(), 'UpF '( '(), 'InF '())))
 theIX' = FFS (FFS FFZ)
 
+fhl :: HList '[Fin N3, Fin N3, Fin N3]
 fhl = HC f0o3 $ HC f1o3 $ HC f2o3 HN
+fhl' :: HList '[Fin N3, Fin N3, Fin N3]
 fhl' = HC f0o3 $ HC f2o3 $ HC f1o3 HN
 
+unitTests :: Test
 unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
