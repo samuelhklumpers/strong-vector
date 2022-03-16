@@ -399,3 +399,19 @@ det v@(VC _ w)       = sum $ cof <$> enumerate v
 minor :: Num a => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a
 minor i j v = det (subMatrix i j v)
 
+-- | returns the trace of a number matrix
+trace :: forall a n m. Num a => Vec n (Vec m a) -> a
+trace matrix@(VC (VC x _) _)  = x + trace (subMatrix FZ FZ matrix)
+trace _                       = 0
+
+-- | Return the inner product of two given vectors.
+-- Inner product is also called the dot product
+innerProduct :: forall a n. Num a => Vec n a -> Vec n a -> a
+innerProduct (VC x VN) (VC y VN) = x * y
+innerProduct (VC x xs) (VC y ys) = x * y + innerProduct xs ys
+innerProduct _ _                 = 0
+
+-- | given two vectors, this will return the outer product in a matrix
+outerProduct :: forall a n m. Num a => Vec n a -> Vec m a -> Vec m (Vec n a)
+outerProduct _   VN        = VN
+outerProduct vcs (VC y ys) = VC (fmap (* y) vcs) (outerProduct vcs ys)
