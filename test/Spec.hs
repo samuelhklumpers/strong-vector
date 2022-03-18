@@ -6,6 +6,8 @@ module Main where
 import Vectors
 import Naturals
 
+import ProductTests
+
 import Test.Hspec
 import Test.HUnit
 import Test.Hspec.Contrib.HUnit
@@ -79,8 +81,9 @@ unitTests = test [
         "indexing enumFin returns the index"  ~: (get (enumFin four) twoF) ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "      ~: slice one two two one Refl enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]" ~: mask enum6 theMask ~=? sliceAndMaskResult,
-        "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult
+        "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
+        productTests
     ]
 
 main :: IO ()
