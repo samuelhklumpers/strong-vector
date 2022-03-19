@@ -21,8 +21,6 @@ import Data.STRef
 
 
 import Naturals
-import Defunction
-import Unsafe.Coerce
 
 
 -- | The type for vectors with known size
@@ -271,9 +269,31 @@ mask VN BN = VN
 mask (VC a v) (BC BT bv) = VC a (mask v bv)
 mask (VC _ v) (BC BF bv) = mask v bv
 
+data TyFun :: * -> * -> *
+type k1 ~> k2 = TyFun k1 k2 -> *
+
+
+type family Apply (f :: k1 ~> k2) (x :: k1) :: k2
+
+data TyCon :: (k1 -> k2) -> k1 ~> k2
+type instance Apply (TyCon tc) x = tc x
+
+data SingSym :: k ~> *
+type instance Apply SingSym x = Sing x
+
+{-
 data SList :: forall a. [a] -> * where
     SNil :: SList '[]
     SCons :: forall a (x :: a) (xs :: [a]). Sing (x :: a) -> SList (xs :: [a]) -> SList (x ': xs)  
+-}
+
+
+data XList :: forall a. (k ~> *) -> [a] -> * where
+    XNil  :: XList f '[]
+    XCons :: forall f a (x :: a) (xs :: [a]). Apply f (x :: a) -> XList f (xs :: [a]) -> XList f (x ': xs)
+
+type SList = XList SingSym
+type TList tc = XList (TyCon tc)
 
 type instance Sing = Nat
 type instance Sing = Boolean
@@ -289,9 +309,9 @@ type family SLength (bs :: [k]) :: N where
     SLength (_ ': xs) = 'S (SLength xs)
 
 mask' :: Vec (SLength bs) a -> SList bs -> Vec (SCount bs) a
-mask' VN SNil = VN
-mask' (VC a v) (SCons BT bv) = VC a (mask' v bv)
-mask' (VC _ v) (SCons BF bv) = mask' v bv
+mask' VN XNil = VN
+mask' (VC a v) (XCons BT bv) = VC a (mask' v bv)
+mask' (VC _ v) (XCons BF bv) = mask' v bv
 
 -- | Embed a vector in a masked region
 putMask :: Vec n a -> BVec n bs -> Vec (Count bs) a -> Vec n a
