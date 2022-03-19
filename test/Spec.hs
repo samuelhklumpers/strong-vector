@@ -5,7 +5,7 @@ module Main where
 
 import Vectors
 import Naturals
-import SwapH
+import SingBase
 
 import Test.Hspec
 import Test.HUnit
@@ -51,8 +51,8 @@ sliceAndMaskResult :: Vec ('S ('S 'Z)) (Fin ('S ('S N4)))
 sliceAndMaskResult = VC f1o6 (VC f3o6 VN)
 
 
-theMask :: BVec N6 ('BCons 'False ('BCons 'True ('BCons 'False ('BCons 'True ('BCons 'False ('BCons 'False 'BNil))))))
-theMask = BC BF $ BC BT $ BC BF $ BC BT $ BC BF $ BC BF BN
+theMask :: SList '[ 'False, 'True, 'False, 'True, 'False, 'False ]
+theMask = XCons BF $ XCons BT $ XCons BF $ XCons BT $ XCons BF $ XCons BF XNil
 
 propertyTestLaws :: Laws -> SpecWith ()
 propertyTestLaws (Laws className properties) =
@@ -67,7 +67,7 @@ maskAssignTest = runST $ do
     v <- newSTRef $ full (1 :: Int) (nat :: Nat N4)
 
     let w = full (3 :: Int) (nat :: Nat N2)
-    let m = BC BF $ BC BT $ BC BF $ BC BT BN
+    let m = XCons BF $ XCons BT $ XCons BF $ XCons BT XNil
 
     v & vAt FZ  .:= 2
     v & vMask m .:= w
@@ -103,21 +103,23 @@ f0o3 = toFin na0 na2
 f1o3 = toFin na1 na1
 f2o3 = toFin na2 na0
 
+{-
 theHL :: HList '[N, N, N]
-theHL = HC n0 $ HC n1 $ HC n2 HN
+theHL = XCons n0 $ XCons n1 $ XCons n2 HN
 theHL' :: HList '[Nat N0, Nat N1, Nat N2]
-theHL' = HC na0 $ HC na1 $ HC na2 HN
+theHL' = XCons na0 $ XCons na1 $ XCons na2 HN
 
 theIX :: FFin ('S ('S N1)) ('UpF '( '(), 'InF '()))
 theIX = FFS (FFZ @N1)
 
 theIX' :: FFin ('S ('S ('S n))) ('UpF '( '(), 'UpF '( '(), 'InF '())))
 theIX' = FFS (FFS FFZ)
+-}
 
-fhl :: HList '[Fin N3, Fin N3, Fin N3]
-fhl = HC f0o3 $ HC f1o3 $ HC f2o3 HN
-fhl' :: HList '[Fin N3, Fin N3, Fin N3]
-fhl' = HC f0o3 $ HC f2o3 $ HC f1o3 HN
+fhl :: TList Fin '[N3, N3, N3]
+fhl = XCons f0o3 $ XCons f1o3 $ XCons f2o3 XNil
+fhl' :: TList Fin '[N3, N3, N3]
+fhl' = XCons f0o3 $ XCons f2o3 $ XCons f1o3 XNil
 
 unitTests :: Test
 unitTests = test [
@@ -125,9 +127,9 @@ unitTests = test [
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
-        "[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
-        "[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
-        "swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',
+        --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
+        --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
+        --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',
         "[0..5][[1,1,3]] == [1,1,3]"                         ~: multiGet enum6 mfs ~=? mfs
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]

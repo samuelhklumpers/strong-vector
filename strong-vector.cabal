@@ -25,14 +25,16 @@ source-repository head
 
 library
   exposed-modules:
-      Defunction
+      Matrix
       Naturals
       NaturalsBase
       NaturalsFams
       NaturalsFuns
       NaturalsProofs
-      SwapH
+      SingBase
       Vectors
+      VectorsBase
+      VectorsLens
   other-modules:
       Paths_strong_vector
   hs-source-dirs:
@@ -90,7 +92,7 @@ test-suite strong-vector-test
       FlexibleContexts
       LambdaCase
       EmptyCase
-  ghc-options: -O0 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O0 -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
     , QuickCheck
