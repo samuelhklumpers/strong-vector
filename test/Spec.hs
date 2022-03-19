@@ -4,6 +4,7 @@
 module Main where
 
 import Vectors
+import Tensors
 import Naturals
 import SingBase
 
@@ -121,12 +122,34 @@ fhl = XCons f0o3 $ XCons f1o3 $ XCons f2o3 XNil
 fhl' :: TList Fin '[N3, N3, N3]
 fhl' = XCons f0o3 $ XCons f2o3 $ XCons f1o3 XNil
 
+vec2 :: Int -> Int -> Vec N2 Int
+vec2 a b = VC a (VC b VN)
+
+myTensor11 :: Tensor (N1 ': N1 ': '[]) Int -- 1x1 tensor equals 1x1 matrix
+myTensor11 = TC $ VC (TC $ VC (TZ 5) VN) VN
+
+myTensor2 :: Tensor (N2 ': '[]) Int  -- 2 tensor equals 2-vector
+myTensor2 = TC $ fmap TZ (vec2 5 8)
+
+myTensor22 :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
+myTensor22 = TC $ fmap TC $ VC (fmap TZ (vec2 1 2)) (VC (fmap TZ (vec2 3 4)) VN)
+
+myTensor12 :: Tensor (N1 ': N2 ': '[]) Int
+myTensor12 = TC (VC (TC (VC (TZ 0) (VC (TZ 1) VN))) VN)
+
+myTensor21 :: Tensor (N2 ': N1 ': '[]) Int
+myTensor21 = TC (VC (TC (VC (TZ 0) VN)) (VC (TC (VC (TZ 1) VN)) VN))
+
+myTranspose21 :: Tensor (N2 ': N1 ': '[]) Int
+myTranspose21 = transpose @N0 @N1 myTensor12 na0 na1
+
 unitTests :: Test
 unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
+        "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
         --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
         --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',

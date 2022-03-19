@@ -55,6 +55,17 @@ instance KnownNat n => KnownNat ('S n) where
     nat = NS nat
 
 
+class KnownNatList ns where
+    nats :: TList Nat ns
+
+instance KnownNatList '[] where
+    nats = XNil
+
+instance (KnownNat n, KnownNatList ns) => KnownNatList (n ': ns) where
+    nats = XCons nat nats
+
+
+
 -- * Instances
 
 type instance Sing = Nat

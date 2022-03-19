@@ -1,7 +1,12 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
+
 module Tensors where
 
 import Data.Distributive
 import Data.Functor.Rep
+import GHC.Base (Any)
 
 import Naturals
 import Vectors
@@ -13,79 +18,63 @@ data Tensor ix a where
     TZ :: a -> Tensor '[] a
     TC :: Vec n (Tensor ix a) -> Tensor (n ': ix) a
 
+deriving instance Eq a => Eq (Tensor ix a)
+
+deriving instance Show a => Show (Tensor ix a)
+
 instance Functor (Tensor ix) where
     fmap f (TZ a) = TZ (f a)
     fmap f (TC vs) = TC (fmap (fmap f) vs)
 
-instance Distributive (Tensor ix) where
+instance KnownNatList ix => Distributive (Tensor ix) where
     distribute = distributeRep
 
-instance Representable (Tensor ix) where
+instance KnownNatList ix => Representable (Tensor ix) where
     type Rep (Tensor ix) = TList Fin ix
 
-    tabulate = undefined
-
-    index (TZ a) XNil = a
-    index (TC vs) (XCons ap xl) = undefined
+    tabulate = tabulateT
+    index = getT
 
 
-{-
-vec2 :: Int -> Int -> Vec N2 Int
-vec2 a b = VC a (VC b VN)
+getT :: Tensor ix a -> TList Fin ix -> a
+getT (TZ a)  XNil         = a
+getT (TC vs) (XCons i ix) = getT (get vs i) ix
 
-myTensor11 :: Tensor (N1 ': N1 ': '[]) Int -- 1x1 tensor equals 1x1 matrix
-myTensor11 = TC $ VC (TV (VC 5 VN)) VN
+tabulateT :: KnownNatList ix => (TList Fin ix -> a) -> Tensor ix a
+tabulateT = tabulateTN nats
 
-myTensor2 :: Tensor (N2 ': '[]) Int  -- 2 tensor equals 2-vector
-myTensor2 = TV (vec2 5 8)
+xCurry :: (XList f (x ': xs) -> a) -> Apply f x -> XList f xs -> a
+xCurry f x xs = f (XCons x xs)
 
-myTensor22 :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
-myTensor22 = TC $ VC (TV (vec2 1 2)) (VC (TV $ vec2 3 4) VN)
+tabulateTN :: TList Nat ix -> (TList Fin ix -> a) -> Tensor ix a
+tabulateTN XNil f = TZ (f XNil)
+tabulateTN (XCons n ns) f = TC $ fmap (tabulateTN ns) (generateN n (xCurry f))
 
+type family Get (xs :: [k]) (i :: N) :: k where
+    Get '[] i            = Any -- Is there a type level "undefined"? -- yes
+    Get (x ': xs) N0     = x
+    Get (x ': xs) ('S i) = Get xs i
 
+type family Put (xs :: [k]) (i :: N) (x :: k) :: [k] where
+    Put '[] i x            = '[] -- TODO, shouldn't happen? -- we may switch to the FFin families in deprecate\SwapH, but these are problematic for other reasons
+    Put (_ ': xs) N0 x     = x ': xs
+    Put (x ': xs) ('S i) y = x ': Put xs i y
 
--- | Return the transpose of a matrix
-transpose :: KnownNat m => Vec n (Vec m a) -> Vec m (Vec n a)
-transpose = transpose' nat
-    where transpose' :: Nat m -> Vec n (Vec m a) -> Vec m (Vec n a)
-          transpose' m VN                = full VN m -- We want a vector of length m with VN elements
-          transpose' NZ (VC VN _)         = VN
-          transpose' (NS m') v@(VC (VC _ _) _) = VC (Vectors.head <$> v) (transpose' m' (Vectors.tail <$> v))
+type family Swap (xs :: [k]) (i :: N) (j :: N) :: [k] where
+    Swap xs i j = Put (Put xs j (Get xs i)) i (Get xs j)
 
-transposeT :: Tensor ix a -> Nat i -> Nat j -> Tensor (Swap ix i j) a
-transposeT x i j = undefined -- tabulate (swap'' (Data.Functor.Rep.index x) i j)
+getX :: XList f xs -> Nat i -> Apply f (Get xs i)
+getX XNil _              = undefined -- Good? -- no but we can't do much about this
+getX (XCons x _) NZ      = x
+getX (XCons _ xs) (NS n) = getX xs n
 
-type family Get (l :: [k]) (i :: N) :: k where
-    Get '[] i             = N0 -- TODO; Is there a type level "undefined"?
-    Get (n ': l) N0     = n
-    Get (n ': l) ('S i') = Get l i'
+putX :: forall x f xs i. XList f xs -> Nat i -> Apply f x -> XList f (Put xs i x)
+putX XNil _ _              = undefined -- Good?
+putX (XCons _ xs) NZ y     = XCons y xs
+putX (XCons x xs) (NS i) y = XCons x (putX @x xs i y)
 
-type family Put (l :: [k]) (i :: N) (n :: k) :: [k] where
-    Put '[] i n = '[] -- TODO, shouldn't happen?
-    Put (n' ': l) N0 n = n ': l
-    Put (n' ': l) ('S i') n = n' ': Put l i' n
+swapX :: forall i j f xs. Nat i -> Nat j -> XList f xs -> XList f (Swap xs i j)
+swapX i j xs = putX @(Get xs j) (putX @(Get xs i) xs j (getX xs i)) i (getX xs j)
 
-type family Swap (l :: [k]) (i :: N) (j :: N) :: [k] where
-    Swap l i j = Put (Put l j (Get l i)) i (Get l j)
-
-get'' :: forall (xs :: [*]) i. HList xs -> Nat i -> Get xs i
-get'' HN _             = undefined -- Good?
-get'' (HC x _) NZ      = x
-get'' (HC _ xs) (NS n) = get'' xs n
-
-put'' :: forall (xs :: [*]) i x. HList xs -> Nat i -> x -> HList (Put xs i x)
-put'' HN _ _             = undefined -- Good?
-put'' (HC _ xs) NZ y     = HC y xs
-put'' (HC x xs) (NS n) y = HC x $ put'' xs n y
-
-swap'' :: forall (xs :: [*]) i j. HList xs -> Nat i -> Nat j -> HList (Swap xs i j)
-swap'' xs i j = put'' (put'' xs j (get'' xs i)) i (get'' xs j)
-
--- Suppose we transpose Index 0 and 1 (0-indexed) of myTensor22
-
-myTensor22' :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
-myTensor22' = TC $ VC (TV (vec2 5 6)) (VC (TV $ vec2 7 8) VN)
-
-myTensor222 :: Tensor (N2 ': N2 ': N2 ': '[]) Int -- 2x2x2 tensor
-myTensor222 = TC $ VC myTensor22 (VC myTensor22' VN)
--}
+transpose :: forall i j ix a. KnownNatList ix => Tensor (Swap ix i j) a -> Nat i -> Nat j -> Tensor ix a
+transpose t i j = tabulate $ getT t . swapX @i @j i j
