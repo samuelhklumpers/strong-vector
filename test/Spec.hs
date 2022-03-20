@@ -94,6 +94,26 @@ sliceBuzz = runST $ do
 
     readSTRef v
 
+
+transposeTest :: Tensor '[N4, N3, N2] Int
+transposeTest = runST $ do
+    let x1 = (+1) . finToInt <$> enumFin na2
+    let x2 = finToInt <$> enumFin na4
+    let x3 = (+1) . finToInt <$> enumFin na3
+
+    let v1 = fmap (\n -> fromIntegral n * x2) x1
+    let v2 = fmap (fmap (\n -> fromIntegral n * x3)) v1
+
+    let t1' = fmap (fmap (fmap TZ)) v2
+    let t2' = fmap (fmap TC) t1'
+    let t3' = fmap TC t2'
+    let t4 = TC t3'
+
+    let tt1 = transpose' na0 na2 t4
+    let tt2 = transpose' na0 na1 tt1
+
+    return tt2
+
 maskAssignResult :: Vec N4 Int
 maskAssignResult = VC 2 $ VC 3 $ VC 1 $ VC 3 VN
 
@@ -141,7 +161,7 @@ myTensor21 :: Tensor (N2 ': N1 ': '[]) Int
 myTensor21 = TC (VC (TC (VC (TZ 0) VN)) (VC (TC (VC (TZ 1) VN)) VN))
 
 myTranspose21 :: Tensor (N2 ': N1 ': '[]) Int
-myTranspose21 = transpose @N0 @N1 myTensor12 na0 na1
+myTranspose21 = transpose na0 na1 myTensor12
 
 unitTests :: Test
 unitTests = test [

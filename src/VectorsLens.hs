@@ -15,7 +15,9 @@ import Data.STRef
 
 import Naturals
 import VectorsBase
+import Tensors
 import SingBase
+import Unsafe.Coerce (unsafeCoerce)
 
 
 -- | Extract the segment from @n@ until @n + m@ from @v@
@@ -118,3 +120,5 @@ vSlice n m k l = lens g' p' where
 (.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
 (.:=) s a r = modifySTRef r (s .~ a)
 
+vTranspose :: (KnownNatList ix, KnownNatList iy, Swapped' ix i j iy) => Nat i -> Nat j -> Lens' (Tensor iy a) (Tensor ix a)
+vTranspose i j = lens (transpose i j) (const $ transpose' i j)
