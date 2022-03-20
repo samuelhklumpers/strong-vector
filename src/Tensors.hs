@@ -51,6 +51,10 @@ tabulateTN :: TList Nat ix -> (TList Fin ix -> a) -> Tensor ix a
 tabulateTN XNil f = TZ (f XNil)
 tabulateTN (XCons n ns) f = TC $ fmap (tabulateTN ns) (generateN n (xCurry f))
 
+data Fin2 :: N -> N -> * where
+    Fz :: Fin2 N0 ('S n)
+    Fs :: Fin2 n m -> Fin2 ('S n) ('S m)
+
 type family Get (xs :: [k]) (i :: N) :: k where
     Get '[] i            = Any -- Is there a type level "undefined"? -- yes
     Get (x ': xs) N0     = x
@@ -73,14 +77,27 @@ getX XNil _              = undefined -- Good? -- no but we can't do much about t
 getX (XCons x _) NZ      = x
 getX (XCons _ xs) (NS n) = getX xs n
 
+getX' :: XList f xs -> Fin2 i (Length xs) -> Apply f (Get xs i)
+getX' (XCons x _) Fz      = x
+getX' (XCons _ xs) (Fs i) = getX' xs i
+
 class (ys ~ Put xs i x) => Putted xs i x ys where -- give this a better name
     putX :: Proxy x -> XList f xs -> Nat i -> Apply f x -> XList f ys
 
+--putX :: Putted xs i x ys => Proxy x -> XList f xs -> Nat i -> Apply f x -> XList f ys
 instance (ys ~ Put xs i x) => Putted xs i x ys where
-    --putX :: Putted xs i x ys => Proxy x -> XList f xs -> Nat i -> Apply f x -> XList f ys
     putX _ XNil _ _              = undefined -- Good?
     putX _ (XCons _ xs) NZ y     = XCons y xs
     putX p (XCons x xs) (NS i) y = XCons x (putX p xs i y)
+
+
+class (ys ~ Put xs i x) => Putted' xs i x ys where -- give this a better name
+    putX' :: Proxy x -> XList f xs -> Fin2 i (Length xs) -> Apply f x -> XList f ys
+
+instance (ys ~ Put xs i x) => Putted' xs i x ys where
+    putX' _ (XCons _ xs) Fz y     = XCons y xs
+    putX' p (XCons x xs) (Fs i) y = XCons x (putX' p xs i y)
+
 
 type family Swap (i :: N) (j :: N) (xs :: [k]) :: [k] where
     Swap i j xs = Put (Put xs j (Get xs i)) i (Get xs j)
@@ -89,10 +106,24 @@ class (ys ~ Swap i j xs) => Swapped' xs i j ys where
     swap :: Nat i -> Nat j -> XList f xs -> XList f ys
 
 instance (ys ~ Swap i j xs) => Swapped' xs i j ys where
-  swap i j xs = putX (Proxy @(Get xs j)) (putX (Proxy @(Get xs i)) xs j (getX xs i)) i (getX xs j)
+    swap i j xs = putX (Proxy @(Get xs j)) (putX (Proxy @(Get xs i)) xs j (getX xs i)) i (getX xs j)
+
+lengthLemma :: forall xs x i f. Proxy f -> Proxy x -> Proxy xs -> Proxy i -> Apply f (Length xs) -> Apply f (Length (Put xs i x))
+lengthLemma _ _ _ _ = unsafeCoerce
+
+
+swapX :: forall i j xs ys f. (ys ~ Swap i j xs) => Fin2 i (Length xs) -> Fin2 j (Length xs) -> XList f xs -> XList f ys
+swapX i j xs = putX' (Proxy @(Get xs j)) (putX' (Proxy @(Get xs i)) xs j (getX' xs i)) i' (getX' xs j) where
+    i' :: Fin2 i (Length (Put xs j (Get xs i)))
+    i' = lengthLemma (Proxy @(TyCon (Fin2 i))) (Proxy @(Get xs i)) (Proxy @xs) (Proxy @j) i
+
+    
 
 transpose :: forall ix iy i j a. (KnownNatList ix, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor iy a -> Tensor ix a
 transpose i j t = tabulateT $ getT t . swap i j
+
+transpose2 :: forall ix iy i j a. (KnownNatList ix, Swapped' ix i j iy) => Fin2 i (Length ix) -> Fin2 j (Length ix) -> Tensor iy a -> Tensor ix a
+transpose2 i j t = tabulateT $ getT t . swapX i j
 
 swapLemma :: Swapped' ix i j iy => Nat i -> Nat j -> Tensor ix a -> Tensor (Swap i j iy) a
 swapLemma _ _ = unsafeCoerce
