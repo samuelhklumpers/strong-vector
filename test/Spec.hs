@@ -58,7 +58,7 @@ theMask = XCons BF $ XCons BT $ XCons BF $ XCons BT $ XCons BF $ XCons BF XNil
 propertyTestLaws :: Laws -> SpecWith ()
 propertyTestLaws (Laws className properties) =
   describe className $
-  traverse_ (\(name, p) -> it name (property p)) $
+  traverse_ (\(name, p) -> it name (property p))
   properties
 
 
@@ -152,7 +152,7 @@ myTensor2 :: Tensor (N2 ': '[]) Int  -- 2 tensor equals 2-vector
 myTensor2 = TC $ fmap TZ (vec2 5 8)
 
 myTensor22 :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
-myTensor22 = TC $ fmap TC $ VC (fmap TZ (vec2 1 2)) (VC (fmap TZ (vec2 3 4)) VN)
+myTensor22 = TC (TC <$> VC (fmap TZ (vec2 1 2)) (VC (fmap TZ (vec2 3 4)) VN))
 
 myTensor12 :: Tensor (N1 ': N2 ': '[]) Int
 myTensor12 = TC (VC (TC (VC (TZ 0) (VC (TZ 1) VN))) VN)
@@ -166,6 +166,21 @@ myTranspose21 = transpose na0 na1 myTensor12
 myReshape4 :: Tensor (N4 ': '[]) Int
 myReshape4 = TC $ TZ <$> VC 1 (VC 2 $ VC 3 $ VC 4 VN)
 
+myShape22 :: SList '[ N2, N2]
+myShape22 = XCons na2 $ XCons na2 XNil
+
+data DoubleSym :: N ~> *
+type instance Apply DoubleSym n = Vec (n :* N2) Int
+
+
+doubleFold :: Vec N8 Int
+doubleFold = dfold' (Proxy @DoubleSym) h maskAssignResult VN where
+    h :: Nat n -> Int -> Vec (n :* N2) Int -> Vec (N2 + (n :* N2)) Int
+    h _ a v = VC a $ VC a v
+
+doubleFoldRes :: Vec N8 Int
+doubleFoldRes = VC 2 $ VC 2 $ VC 3 $ VC 3 $ VC 1 $ VC 1 $ VC 3 $ VC 3 VN
+
 unitTests :: Test
 unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
@@ -173,7 +188,9 @@ unitTests = test [
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
         "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
-        "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 (XCons na2 $ XCons na2 XNil) ~=? myTensor22,
+        "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 myShape22 ~=? myTensor22,
+        "flatten . reshape == flatten"                       ~: flatten (reshape myReshape4 myShape22) ~=? flatten myReshape4,
+        "dfold' double [2,3,1,3] == [2,2,3,3,1,1,3,3]"       ~: doubleFold ~=? doubleFoldRes,
         --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
         --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',

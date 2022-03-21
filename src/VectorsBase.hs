@@ -20,6 +20,8 @@ import Data.Functor.Rep
 
 import Naturals
 import SingBase
+import Data.Proxy (Proxy)
+import Data.Data (Proxy(Proxy))
 
 
 -- | The type for vectors with known size
@@ -145,6 +147,14 @@ unfoldN (NS n) f z = VC a (unfoldN n f s) where
 unfold :: KnownNat n => (s -> (a, s)) -> s -> Vec n a
 unfold = unfoldN nat
 
+dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f ('S k) -> Apply f k) -> Vec n a -> Apply f n -> Apply f N0
+dfold _ _ VN z = z
+dfold p f (VC a v) z = dfold p f v (f (size v) a z)
+
+dfold' :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
+dfold' _ _ VN z = z
+dfold' p f (VC a v) z = f (size v) a (dfold' p f v z)
+
 -- | @iterateN n f x@ returns a vector of size @n@ of repeated applications of @f@ to @x@
 iterateN :: Nat n -> (a -> a) -> a -> Vec n a
 iterateN NZ     _ _ = VN
@@ -214,4 +224,3 @@ enumerate v = zipWith (,) (enumFin $ size v) v
 delete :: Fin ('S n) -> Vec ('S n) a -> Vec n a
 delete FZ (VC _ v)    = v
 delete (FS f) (VC x v) = VC x $ delete f v
-
