@@ -13,6 +13,7 @@ import Unsafe.Coerce
 import NaturalsBase
 import NaturalsFams
 import NaturalsFuns
+import SingBase
 
 
 -- * Classes

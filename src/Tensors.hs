@@ -117,7 +117,7 @@ swapX i j xs = putX' (Proxy @(Get xs j)) (putX' (Proxy @(Get xs i)) xs j (getX' 
     i' :: Fin2 i (Length (Put xs j (Get xs i)))
     i' = lengthLemma (Proxy @(TyCon (Fin2 i))) (Proxy @(Get xs i)) (Proxy @xs) (Proxy @j) i
 
-    
+
 
 transpose :: forall ix iy i j a. (KnownNatList ix, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor iy a -> Tensor ix a
 transpose i j t = tabulateT $ getT t . swap i j
@@ -130,6 +130,20 @@ swapLemma _ _ = unsafeCoerce
 
 transpose' :: forall ix iy i j a. (KnownNatList iy, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor ix a -> Tensor iy a
 transpose' i j t = transpose @iy i j $ swapLemma i j t
+
+
+flatten :: Tensor ix a -> Vec (Prod ix) a
+flatten (TZ a) = VC a VN
+flatten (TC vs) = concatenate (flatten <$> vs)
+
+enshape :: Vec (Prod ix) a -> SList ix -> Tensor ix a
+enshape (VC a VN) XNil = TZ a
+enshape v (XCons n ns) = TC $ flip enshape ns <$> split n (prod ns) v
+
+reshape :: Prod ix ~ Prod iy => Tensor ix a -> SList iy -> Tensor iy a
+reshape t = enshape (flatten t)
+
+
 
 {-
 insX :: forall x y f xs i. XList f (Insert xs i y) -> Nat i -> Apply f x -> XList f (Insert xs i x)

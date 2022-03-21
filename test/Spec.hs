@@ -163,6 +163,9 @@ myTensor21 = TC (VC (TC (VC (TZ 0) VN)) (VC (TC (VC (TZ 1) VN)) VN))
 myTranspose21 :: Tensor (N2 ': N1 ': '[]) Int
 myTranspose21 = transpose na0 na1 myTensor12
 
+myReshape4 :: Tensor (N4 ': '[]) Int
+myReshape4 = TC $ TZ <$> VC 1 (VC 2 $ VC 3 $ VC 4 VN)
+
 unitTests :: Test
 unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
@@ -170,6 +173,7 @@ unitTests = test [
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
         "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
         "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
+        "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 (XCons na2 $ XCons na2 XNil) ~=? myTensor22,
         --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
         --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',

@@ -5,6 +5,7 @@ import Data.Void
 
 import NaturalsBase
 import NaturalsFams
+import SingBase
 
 -- * Functions
 
@@ -39,3 +40,6 @@ toFin :: Nat n -> Nat m -> Fin (n + 'S m)
 toFin NZ m     = toFZ m
 toFin (NS n) m = finS \\ know (n +| NS m) $ toFin n m
 
+prod :: SList ns -> Nat (Prod ns)
+prod XNil = NS NZ
+prod (XCons n ns) = n *| prod ns

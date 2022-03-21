@@ -64,6 +64,10 @@ instance KnownNatList '[] where
 instance (KnownNat n, KnownNatList ns) => KnownNatList (n ': ns) where
     nats = XCons nat nats
 
+{-
+getNat :: (KnownNatList ns, Elem n ns ~ 'True) => SList ns -> Nat n
+getNat = _
+-}
 
 
 -- * Instances
