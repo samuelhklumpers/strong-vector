@@ -1,25 +1,13 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module defines a fixed-size vector datatype,
 -- and includes the instances and tools to allow for user-friendly manipulation.
 module Vectors where
 
-import Prelude hiding ( (++), zipWith, take, drop )
-import Data.List hiding ( (++), (\\), zipWith, take, drop, delete )
-import qualified Prelude as P
+import Prelude hiding (splitAt, (++), zipWith, take, drop )
+import Data.List hiding (splitAt, (++), (\\), zipWith, take, drop, delete )
+import qualified Prelude as P hiding (splitAt)
 
 import Control.Applicative
 import Control.Comonad
@@ -33,7 +21,6 @@ import Data.STRef
 
 
 import Naturals
-
 
 
 -- | The type for vectors with known size
@@ -61,13 +48,24 @@ data List xs where
 
 -- | The list length type family
 type family Length (xs :: [k]) :: N where
-    Length '[]         = 'Z
+    Length '[]       = 'Z
     Length (_ ': xs) = 'S (Length xs)
 
+
 -- | The singleton type for heterogeneous type-level lists of kind @k@
-data HList (xs :: [k]) where
+data HList (xs :: [*]) where
     HN :: HList '[]
     HC :: a -> HList xs -> HList (a ': xs)
+
+instance Eq (HList '[]) where
+    HN == HN = True
+
+deriving instance (Eq a, Eq (HList xs)) => Eq (HList (a ': xs))
+
+instance Show (HList '[]) where
+    show HN = "HN"
+
+deriving instance (Show a, Show (HList xs)) => Show (HList (a ': xs))
 
 
 -- | The type for tensors with known dimensions
@@ -86,6 +84,7 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x '[]        = 'False
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
+
 
 {-
 -- a block tensor is described by a list of lists of dimensions
@@ -112,13 +111,7 @@ getL :: HList (xs :: HL k) -> Fin (Length xs) -> Demote k
 getL (HC x _) FZ = x
 getL xs (FS fin) = _wd
 -}
-{-
-vSlice ::  forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
-vSlice n m k l p = lens g' p' where
-    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
-    g' = slice n m k l p
-    p' = _
--}
+
 
 -- | The boolean counting type family
 type family Count (bs :: BV) :: N where
@@ -213,19 +206,58 @@ splitAt :: forall m n a. Nat n -> Vec (n + m) a -> (Vec n a, Vec m a)
 splitAt n v = (take @m n v, drop n v)
 
 -- | Extract the segment from @n@ until @n + m@ from @v@
-segment :: forall n m k a. KnownNat k => Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
-segment n m = take @k m . drop @n n \\ plusAssoc n m (nat @k)
+segment :: forall k n m a. Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a
+segment n m v = take @k m . drop @n n $ v \\ plusAssoc n m k' where
+    e :: (n + m + k) - (n + m) :~: k
+    e = addCancel (n +| m)
+    k' :: Nat k
+    k' = size v -| (n +| m) \\ e
+
+-- | Embed a vector in the segment from @n@ until @n + m@
+putSegment :: forall k n m a. Nat n -> Nat m -> Vec (n + m + k) a -> Vec m a -> Vec (n + m + k) a
+putSegment n m v w = v1 ++ w ++ v3 where
+    (v1, w1) = splitAt @(m + k) @n @a n (v \\ plusAssoc n m k')
+    (_, v3) = splitAt @k @m @a m w1
+    e :: (n + m + k) - (n + m) :~: k
+    e = addCancel (n +| m)
+    k' :: Nat k
+    k' = size v -| (n +| m) \\ e
 
 -- | Take each @m@th element of @v@
-subseq :: Nat n -> Nat m -> 'Z <? m -> Vec (n :* m) a -> Vec n a
-subseq n m p VN                 = VN \\ rightOrCancel (ltNeq NZ m p) (factorZ n m Refl)
-subseq (NS n) (NS m) p (VC a v) = VC a $ subseq n (NS m) p (drop m v)
+subseq :: forall n m a. m !~ 'Z => Nat n -> Nat m -> Vec (n :* m) a -> Vec n a
+subseq n m = subseq' n m neq
 
--- | Split vector into @n@ pieces
-split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
-split NZ _ _     = VN
-split n NZ _     = full VN n
-split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
+subseq' :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a
+subseq' _ NZ p _                 = exFalso (p Refl)
+subseq' n m p VN                 = VN \\ rightOrCancel p (factorZ n m Refl)
+subseq' (NS n) (NS m) p (VC a v) = VC a $ subseq' n (NS m) p (drop m v)
+
+-- | Embed a vector in the subsequence spanned by the multiples of @m@
+putSubseq :: forall n m a. m !~ 'Z => Nat n -> Nat m -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
+putSubseq n m = putSubseq' n m neq
+
+putSubseq' :: forall n m a. Nat n -> Nat m -> Neq m 'Z -> Vec (n :* m) a -> Vec n a -> Vec (n :* m) a
+putSubseq' _ _ _ VN _ = VN
+putSubseq' _ NZ p (VC _ _) (VC _ _) = exFalso (p Refl)
+putSubseq' (NS (n :: Nat n')) (NS m) p (VC _ v) (VC b w) = VC b (take @(n' :* m) m v) ++ putSubseq' n (NS m) p (drop m v) w
+
+-- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
+slice :: forall n m k l a. (k !~ 'Z) => Nat n -> Nat m -> Nat k -> Nat l -> Vec (n + (m :* k) + l) a -> Vec m a
+slice n m k l v = subseq m k $ segment @l n (m *| k) v \\ know l
+
+-- | Embed a vector in a slice
+putSlice :: forall n m k l a. k !~ 'Z => Nat n -> Nat m -> Nat k -> Nat l -> Vec (n + (m :* k) + l) a -> Vec m a -> Vec (n + (m :* k) + l) a
+putSlice n m k l v w = putSegment @l n (m *| k) v seg' \\ know l where
+    seg' = putSubseq m k seg w
+    seg = segment @l n (m *| k) v \\ know l -- putSlice is only ever going to look nice if we resort to type division
+
+-- | Given slicing information, return a lens pointing to the specified slice.
+vSlice ::  forall n m k l a. k !~ 'Z => Nat n -> Nat m -> Nat k -> Nat l -> Lens' (Vec (n + (m :* k) + l) a) (Vec m a)
+vSlice n m k l = lens g' p' where
+    g' :: Vec ((n + (m :* k)) + l) a -> Vec m a
+    g' = slice n m k l
+    p' :: Vec ((n + (m :* k)) + l) a -> Vec m a -> Vec ((n + (m :* k)) + l) a
+    p' = putSlice n m k l
 
 -- | Boolean mask extraction
 mask :: Vec n a -> BVec n bs -> Vec (Count bs) a
@@ -239,19 +271,30 @@ putMask VN BN VN = VN
 putMask (VC _ v) (BC BT bs) (VC y w) = VC y $ putMask v bs w
 putMask (VC x v) (BC BF bs) w        = VC x $ putMask v bs w
 
+-- | Multi-indexing; given a vector of indices, return a vector of the indexed values
+multiGet :: Vec n a -> Vec m (Fin n) -> Vec m a
+multiGet v fs = get v <$> fs
+
+-- | Multi-index assignment; given a vector of indices and a vector of values, update a vector at all indices with the provided values. Later values overwrite earlier values.
+multiPut :: Vec n a -> Vec m (Fin n) -> Vec m a -> Vec n a
+multiPut v VN VN = v
+multiPut v (VC f fs) (VC x w) = multiPut (put v f x) fs w
+
+-- | Given a set of indices, return a lens pointing to the elements under the multi-index
+vMulti :: Vec m (Fin n) -> Lens' (Vec n a) (Vec m a)
+vMulti fs = lens (`multiGet` fs) (`multiPut` fs)
+
+-- | Split vector into @n@ pieces
+split :: forall n m a. Nat n -> Nat m -> Vec (n :* m) a -> Vec n (Vec m a)
+split NZ _ _     = VN
+split n NZ _     = full VN n
+split (NS (n :: Nat k)) m v = VC (take @(k :* m) m v) (split n m $ drop m v)
+
 -- | Convert a type-level boolean vector to a vector of @Bool@
 toVec :: BVec n xs -> Vec n Bool
 toVec BN = VN
 toVec (BC b bv) = VC (toB b) (toVec bv)
 
--- | Slice @v@, returning @k@ elements @m@ steps apart after @n@. 
-slice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec (n + (m :* k) + l) a -> Vec m a
-slice n m k l p v = subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
-
-{-
-putSlice :: forall n m k l a. Nat n -> Nat m -> Nat k -> Nat l -> 'Z <? k -> Vec m a -> Vec (n + (m :* k) + l) a -> Vec m a
-putSlice n m k l p v w = _ --subseq m k p $ segment @n @(m :* k) @l n (m *| k) v \\ know l
--}
 
 -- let us forgo the numpy sentiment of absurd slices
 -- and write a[start:stop]
@@ -265,6 +308,15 @@ vAt f = lens (`get` f) (`put` f)
 vMask :: BVec n bs -> Lens' (Vec n a) (Vec (Count bs) a)
 vMask bs = lens (`mask` bs) (`putMask` bs)
 
+-- | A lens pointing to the segment from @n@ to @n + m@.
+vSeg :: forall n m k a. Nat n -> Nat m -> Lens' (Vec (n + m + k) a) (Vec m a)
+vSeg n m = lens (segment @k n m) (putSegment @k n m)
+
+{-
+vSub :: Nat m -> Lens' (Vec (n :* m) a) (Vec n a)
+vSub m = lens (subseq _ m) _
+-}
+
 -- | Variant of @Control.Lens.Operators.(.=)@ for @ST@.
 (.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
 (.:=) s a r = modifySTRef r (s .~ a)
@@ -274,10 +326,12 @@ concatenate :: Vec n (Vec m a) -> Vec (n :* m) a
 concatenate VN = VN
 concatenate (VC v vs) = v ++ concatenate vs
 
+{-
 -- | Flatten a tensor into a vector.
 flatten :: Tensor ix a -> Vec (Prod ix) a
 flatten (TV v) = v \\ mulRightId (size v)
 flatten (TC vs) = concatenate $ fmap flatten vs
+-}
 
 {-
 toShape :: Vec (Prod ix) a -> List ix -> Neg (ix :~: 'Nil) -> Tensor ix a

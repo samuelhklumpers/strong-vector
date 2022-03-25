@@ -26,12 +26,34 @@ source-repository head
 library
   exposed-modules:
       Naturals
+      NaturalsBase
+      NaturalsFams
+      NaturalsFuns
+      NaturalsProofs
+      SwapH
       Vectors
   other-modules:
       Paths_strong_vector
   hs-source-dirs:
       src
-  ghc-options: -Wall
+  default-extensions:
+      DataKinds
+      GADTs
+      ScopedTypeVariables
+      FlexibleInstances
+      TypeOperators
+      TypeApplications
+      PolyKinds
+      TypeFamilyDependencies
+      RankNTypes
+      MultiParamTypeClasses
+      StandaloneDeriving
+      BlockArguments
+      ConstraintKinds
+      FlexibleContexts
+      LambdaCase
+      EmptyCase
+  ghc-options: -O0 -Wall
   build-depends:
       adjunctions
     , base >=4.7 && <5
@@ -51,7 +73,24 @@ test-suite strong-vector-test
     , ProductTests
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  default-extensions:
+      DataKinds
+      GADTs
+      ScopedTypeVariables
+      FlexibleInstances
+      TypeOperators
+      TypeApplications
+      PolyKinds
+      TypeFamilyDependencies
+      RankNTypes
+      MultiParamTypeClasses
+      StandaloneDeriving
+      BlockArguments
+      ConstraintKinds
+      FlexibleContexts
+      LambdaCase
+      EmptyCase
+  ghc-options: -O0 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
     , QuickCheck
