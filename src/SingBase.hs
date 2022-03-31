@@ -4,6 +4,9 @@
 module SingBase where
 
 
+-- Sing N = Nat
+-- Sing B = Boolean
+-- Sing [N] = SList N
 type family Sing :: k -> *
 
 data TyFun :: * -> * -> *
