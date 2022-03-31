@@ -15,6 +15,7 @@ det VN               = 0
 det (VC (VC x _) VN) = x
 det v@(VC _ w)       = sum $ cof <$> enumerate v
     where
+    -- j-th cofactor
     cof (j, VC x _) = sign j * x * minor (toFZ $ size w) j v
 
     sign :: Fin m -> a

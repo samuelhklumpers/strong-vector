@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-
+-- | Lenses for vector viewing functions
 module VectorsLens where
 
 import Prelude hiding (splitAt, (++), zipWith, take, drop )
@@ -120,5 +120,6 @@ vSlice n m k l = lens g' p' where
 (.:=) :: ASetter' t a -> a -> STRef s t -> ST s ()
 (.:=) s a r = modifySTRef r (s .~ a)
 
+-- | A lens viewing a tensor with two dimensions transposed.
 vTranspose :: (KnownNatList ix, KnownNatList iy, Swapped' ix i j iy) => Nat i -> Nat j -> Lens' (Tensor iy a) (Tensor ix a)
 vTranspose i j = lens (transpose i j) (const $ transpose' i j)

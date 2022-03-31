@@ -1,12 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | This module defines a fixed-size vector datatype,
--- and includes the instances and tools to allow for user-friendly manipulation.
+-- | Vectors
 module Vectors (
     --module Vectors,
     module VectorsBase
     , module VectorsLens)
+-- Publicly re-export the contents of the base modules
     where
 
 import VectorsBase

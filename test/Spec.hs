@@ -174,7 +174,7 @@ type instance Apply DoubleSym n = Vec (n :* N2) Int
 
 
 doubleFold :: Vec N8 Int
-doubleFold = dfold' (Proxy @DoubleSym) h maskAssignResult VN where
+doubleFold = dfold (Proxy @DoubleSym) h maskAssignResult VN where
     h :: Nat n -> Int -> Vec (n :* N2) Int -> Vec (N2 + (n :* N2)) Int
     h _ a v = VC a $ VC a v
 
@@ -190,7 +190,7 @@ unitTests = test [
         "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
         "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 myShape22 ~=? myTensor22,
         "flatten . reshape == flatten"                       ~: flatten (reshape myReshape4 myShape22) ~=? flatten myReshape4,
-        "dfold' double [2,3,1,3] == [2,2,3,3,1,1,3,3]"       ~: doubleFold ~=? doubleFoldRes,
+        "dfold double [2,3,1,3] == [2,2,3,3,1,1,3,3]"       ~: doubleFold ~=? doubleFoldRes,
         --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
         --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',

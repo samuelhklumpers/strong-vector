@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | Type level natural number arithmetic
 module NaturalsFams where
 
 import NaturalsBase
@@ -28,7 +29,7 @@ type family (n :: N) :* (m :: N) :: N where
 
 -- | Type-level digit concatentation. For example @N9 .| N1 .| N2@ can be read as the type of 912.
 type family (n :: N) .| (m :: N) :: N where
-    n .| m = n :* Digit + m
+    n .| m = (n :* Digit) + m
 
 -- | Auxilliary family for type-level division
 type family DivH (k :: N) (m :: N) (n :: N) (j :: N) :: N where
@@ -52,11 +53,13 @@ type family Prod (ns :: [N]) :: N where
     Prod '[]       = 'S 'Z
     Prod (n ': ns) = n :* Prod ns
 
+-- | The @'True@ counting type family
 type family Count (bs :: [Bool]) :: N where
     Count '[] = 'Z
     Count ('True ': bs) = 'S (Count bs)
     Count ('False ': bs) = Count bs
 
+-- | The list length type family
 type family Length (xs :: [k]) :: N where
     Length '[]       = 'Z
     Length (_ ': xs) = 'S (Length xs)
