@@ -30,6 +30,8 @@ data Fin n where
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
 
+deriving instance Ord (Fin n) 
+
 -- | The singleton type for boolean.
 data Boolean b where
     BT :: Boolean 'True
