@@ -32,6 +32,7 @@ dependencies:
 
 ghc-options:
 - -O0
+- -Wall
 
 default-extensions:
 - DataKinds
@@ -53,8 +54,6 @@ default-extensions:
 
 library:
   source-dirs:  src
-  ghc-options:
-  - -Wall
 
 tests:
   strong-vector-test:

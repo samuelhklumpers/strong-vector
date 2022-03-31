@@ -46,3 +46,17 @@ type family (n :: N) <: (m :: N) :: Bool where
     n <: 'Z      = 'False
     'Z <: 'S n   = 'True
     'S n <: 'S m = n <: m
+
+-- | The list product type family
+type family Prod (ns :: [N]) :: N where
+    Prod '[]       = 'S 'Z
+    Prod (n ': ns) = n :* Prod ns
+
+type family Count (bs :: [Bool]) :: N where
+    Count '[] = 'Z
+    Count ('True ': bs) = 'S (Count bs)
+    Count ('False ': bs) = Count bs
+
+type family Length (xs :: [k]) :: N where
+    Length '[]       = 'Z
+    Length (_ ': xs) = 'S (Length xs)
