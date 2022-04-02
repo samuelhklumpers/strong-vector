@@ -31,8 +31,8 @@ instance Functor (SVec n) where
 
 -- | Zip two sparse vectors using a binary function by applying it to the sparse values, and zipping the dictionaries
 -- | where we use the sparse value if a value is missing in the other dictionary.
-zipWith :: (a -> b -> c) -> SVec n a -> SVec n b -> SVec n c
-zipWith f (SVec sV1 d1) v2@(SVec sV2 d2) = SVec sV zipDicts
+zipWithS :: (a -> b -> c) -> SVec n a -> SVec n b -> SVec n c
+zipWithS f (SVec sV1 d1) v2@(SVec sV2 d2) = SVec sV zipDicts
     where sV = f sV1 sV2
           zipDicts = inD1OrBoth `union` onlyInD2
 
@@ -42,7 +42,7 @@ zipWith f (SVec sV1 d1) v2@(SVec sV2 d2) = SVec sV zipDicts
 instance Applicative (SVec n) where
     pure x = SVec x empty
 
-    liftA2 = zipWith
+    liftA2 = zipWithS
 
 -- | Remove all values from the dictionary that are equal to the sparse value of the SVec
 sparsify :: Eq a => SVec n a -> SVec n a
@@ -69,11 +69,12 @@ sparseVec1 = SVec 5 $ fromList [(FZ, 2), (FS FZ, 8)]
 sparseVec2 :: SVec N9 Int
 sparseVec2 = SVec 3 $ fromList [(FS FZ, 6), (FS $ FS $ FS $ FS FZ, 4)]
 
-dot :: (Eq a, Num a) => SVec n a -> SVec n a -> SVec n a
-dot v1 v2 = sparsify $ liftA2 (*) v1 v2
+-- | Dot product between two sparse vectors
+dot :: (Num a) => SVec n a -> SVec n a -> SVec n a
+dot = liftA2 (*)
 
 sparseVecDot :: SVec N9 Int
-sparseVecDot = sparseVec1 `dot` sparseVec2
+sparseVecDot = sparsify $ sparseVec1 `dot` sparseVec2
 
 
 

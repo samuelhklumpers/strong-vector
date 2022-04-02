@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 
 module SingBase where
@@ -28,8 +29,11 @@ data XList :: forall k. (k ~> *) -> [k] -> * where
     XCons  :: forall k (f :: k ~> *) (x :: k) (xs :: [k]). Apply f (x :: k) -> XList f (xs :: [k]) -> XList f (x ': xs)
 
 type SList = XList SingSym
-type TList tc = XList (TyCon tc)
+type TList tc = XList (TyCon tc) 
 
+-- Ordering for Sparse Tensor
+deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
+deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
 type instance Sing = SList
 
 

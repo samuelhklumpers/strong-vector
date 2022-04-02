@@ -6,9 +6,11 @@
 module Vectors (
     --module Vectors,
     module VectorsBase
-    , module VectorsLens)
+    , module VectorsLens
+    , module VectorsSparse)
     where
 
 import VectorsBase
 import VectorsLens
+import VectorsSparse
 

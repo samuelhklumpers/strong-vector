@@ -15,7 +15,7 @@ import Data.STRef
 
 import Naturals
 import VectorsBase
-import Tensors
+import TensorsBase
 import SingBase
 import Unsafe.Coerce (unsafeCoerce)
 

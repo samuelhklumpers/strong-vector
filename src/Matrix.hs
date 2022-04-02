@@ -26,3 +26,4 @@ det v@(VC _ w)       = sum $ cof <$> enumerate v
 minor :: Num a => Fin ('S n) -> Fin ('S n) -> Vec ('S n) (Vec ('S n) a) -> a
 minor i j v = det (subMatrix i j v)
 
+

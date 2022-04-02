@@ -33,6 +33,8 @@ library
       NaturalsProofs
       SingBase
       Tensors
+      TensorsBase
+      TensorsSparse
       Vectors
       VectorsBase
       VectorsLens
