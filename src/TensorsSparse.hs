@@ -45,19 +45,24 @@ enumList (XCons n ns) = concatMap ((`fmap` enumList ns) . XCons) (enumFin n)
 type SMat m n a = STensor (n ': m ': '[]) a
 type MapMat m n a = Map (TList Fin (n ': m ': '[])) a
 
-matMult :: forall m n p. (KnownNat n, KnownNat p) => SMat m n Int -> SMat n p Int -> SMat m p Int
-matMult (STensor sV mnMap) np = STensor sV newDict
-        where dictIgnoreSparse :: MapMat m p (Int, Int)
-              dictIgnoreSparse = foldr (combine np) Map.empty (Map.toList mnMap)
+matMult :: forall m n p. (KnownNat m, KnownNat n, KnownNat p) => SMat m n Int -> SMat n p Int -> SMat m p (Int, Int)
+matMult mn@(STensor sV mnMap) np@(STensor sV2 npMap) = STensor (sV * sV2, sV * sV2) newDict
+        where d1 :: MapMat m p (Int, Int)
+              d1 = foldr (combine np) Map.empty (Map.toList mnMap)
+              d2 = foldr (combine2 mn) Map.empty (Map.toList npMap)
+              dunion = Map.unionWith tuplePlus d1 d2
               n = toInt (nat :: Nat n)
-              newDict :: MapMat m p Int
-              newDict = fmap (\(v, count) -> v + (n - count) * sV * sV) dictIgnoreSparse
+              newDict :: MapMat m p (Int, Int)
+              newDict = fmap (\(v, count) -> (v + (n - count) * sV * sV2, count)) dunion
+            --   newDict = dunion
 
--- TODO: There are examples of matrices B that have values that get multiplied by values in A that are represented by the sparse value. We need to add those still...
+tuplePlus (a,b) (c,d) = (a + c, b + d)
 
 combine :: (KnownNat p) => SMat n p Int -> (TList Fin (n ': m ': '[]), Int) -> MapMat m p (Int, Int) -> MapMat m p (Int, Int)
 combine np (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus (someFunc nat i j val np)
-    where tuplePlus (a,b) (c,d) = (a + c, b + d)
+
+combine2 :: (KnownNat m) => SMat m n Int -> (TList Fin (p ': n ': '[]), Int) -> MapMat m p (Int, Int) -> MapMat m p (Int, Int)
+combine2 mn (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus (someFunc2 nat i j val mn)
 
 -- i, j is index in mn matrix. 
 -- For k in 1..p:
@@ -69,9 +74,27 @@ someFunc p i j val np = Map.fromList $ [(getIndex k, (getValue k, 1)) | k <- toL
     where getIndex k = XCons k (XCons i XNil)  -- k i => (i, k)
           getValue k = val * getST np (XCons k (XCons j XNil))
 
+-- i, j is index in np matrix
+-- for k in 1..m
+--  let b = (k, i) in mn (but skip if is in the dict. Only do if it is the sparse value)
+--  add val * b to to (k, i) in output.
+someFunc2 :: Nat m -> Fin n -> Fin p -> Int -> SMat m n Int -> MapMat m p (Int, Int)
+someFunc2 m i j val (STensor sV d) = Map.fromList $ [(getIndex k, getValue k) | k <- toList $ enumFin m] 
+    where getIndex k = XCons j (XCons k XNil)
+          getValue k | Map.member (XCons i (XCons k XNil)) d = (0, 0) -- we want to use 0 here if the value exists in the dictionary of mn (otherwise we would duplicate)
+                     | otherwise        = (val * sV, 1)
+
 -- 2x3 matrix
 twoByThree :: SMat N2 N3 Int
-twoByThree = STensor 3 (Map.fromList $ [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS $ FS FZ) (XCons FZ XNil), 4)])
+twoByThree = STensor 3 (Map.fromList $ [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
 
 threeByTwo :: SMat N3 N2 Int
-threeByTwo = STensor 3 $ Map.fromList $ [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons (FS $ FS FZ) XNil), 3)]
+threeByTwo = STensor 7 $ Map.fromList $ [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons (FS $ FS FZ) XNil), 3)]
+
+
+-- 2x3 matrix
+aa :: SMat N2 N3 Int
+aa = STensor 3 (Map.fromList $ [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
+
+ab :: SMat N3 N2 Int
+ab = STensor 3 $ Map.fromList $ [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons FZ XNil), 3), (XCons FZ (XCons FZ XNil), 2), (XCons FZ (XCons (FS FZ) XNil), 1)]
