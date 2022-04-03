@@ -7,6 +7,7 @@ import Data.Functor.Rep
 import GHC.Base (Any)
 
 import Naturals
+    ( Nat(..), N(S), Fin, N0, KnownNatList(..), Length, Prod, prod )
 import VectorsBase
 import SingBase
 import Data.Proxy (Proxy (Proxy))

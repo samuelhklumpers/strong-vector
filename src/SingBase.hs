@@ -46,6 +46,7 @@ type TList tc = XList (TyCon tc)
 -- Ordering for Sparse Tensor
 deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
 deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
+deriving instance (forall x. Show (tc x)) => Show (TList tc ix)
 type instance Sing = SList
 
 -- | The class of singleton kinds. If @k@ is an instance, then @k@ should have an associated singleton.
