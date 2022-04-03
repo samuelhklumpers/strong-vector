@@ -54,8 +54,9 @@ xCurry f x xs = f (XCons x xs)
 
 -- | Create a tensor from a generating function, given the dimensions
 tabulateTN :: TList Nat ix -> (TList Fin ix -> a) -> Tensor ix a
-tabulateTN XNil f = TZ (f XNil)
-tabulateTN (XCons n ns) f = TC $ fmap (tabulateTN ns) (generateN n (xCurry f))
+tabulateTN ns f = fmap f (enumT ns)
+--tabulateTN XNil f = TZ (f XNil)
+--tabulateTN (XCons n ns) f = TC $ fmap (tabulateTN ns) (generateN n (xCurry f))
 
 -- | The finite singleton type, refer to @Fin@ for the simpler finite type.
 -- @Fin2@ extends @Fin@ by also carrying the index in a type parameter.
@@ -155,3 +156,7 @@ enshape v (XCons n ns) = TC $ flip enshape ns <$> split n (prod ns) v
 -- | Given a list of dimensions, reshape a tensor to those dimensions
 reshape :: Prod ix ~ Prod iy => Tensor ix a -> SList iy -> Tensor iy a
 reshape t = enshape (flatten t)
+
+enumT :: TList Nat ns -> Tensor ns (TList Fin ns)
+enumT XNil         = TZ XNil
+enumT (XCons n ns) = TC $ fmap (flip fmap (enumT ns) . XCons) (enumFin n)
