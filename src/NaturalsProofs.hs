@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-
+-- | Properties of natural number operations
 module NaturalsProofs where
 
 
@@ -95,14 +95,24 @@ _ <| NZ          = No \case
 NZ <| (NS _)     = Yes Refl
 (NS n) <| (NS m) = n <| m
 
-helper0 :: Nat (n + 'Z) -> Nat n
-helper0 = unsafeCoerce
+-- | Proof that if @n + m@ and @n@ are known, then @m@ is too.
+splitPlus :: forall n m. Dict (KnownNat (n + m)) -> Dict (KnownNat n) -> Dict (KnownNat m)
+splitPlus Dict Dict = h nat where
+    h :: Nat n -> Dict (KnownNat m)
+    h NZ = Dict
+    h (NS n) = splitPlus (lower Dict) (know n)
 
-helper1 :: Nat ('S 'Z :* n) -> Nat n
-helper1 = unsafeCoerce
+prodSub :: forall n m. Nat m -> Nat ('S n :* m) -> Nat (n :* m)
+prodSub m nm = nm -| m \\ addCancel @m @(n :* m) m
 
-helper2 :: forall n m. Nat m -> Nat ('S n :* m) -> Nat (n :* m)
-helper2 m nm = nm -| m \\ addCancel @m @(n :* m) m
+-- * Axioms
+
+-- | The following statements are unprovable (as far as I can tell), hence they are axioms.
+plusZero :: Nat (n + 'Z) -> Nat n
+plusZero = unsafeCoerce
+
+oneMult :: Nat ('S 'Z :* n) -> Nat n
+oneMult = unsafeCoerce
 
 -- | Type-level division. (Use ill-advised)
 divide :: forall n m. Nat m -> Nat (n :* m) -> Neq m 'Z -> Nat n
@@ -110,9 +120,3 @@ divide m nm p = case nm <| m of
     Yes _ -> unsafeCoerce NZ
     No _ ->  unsafeCoerce $ NS $ unsafeCoerce $ divide m (unsafeCoerce $ nm -| m) p
 
--- | Proof that if @n + m@ and @n@ are known, then @m@ is too.
-splitPlus :: forall n m. Dict (KnownNat (n + m)) -> Dict (KnownNat n) -> Dict (KnownNat m)
-splitPlus Dict Dict = h nat where
-    h :: Nat n -> Dict (KnownNat m)
-    h NZ = Dict
-    h (NS n) = splitPlus (lower Dict) (know n)

@@ -1,7 +1,5 @@
--- | This module declares the type-level naturals for the type signatures of sized vectors,
--- along with the necessary machinery to manipulate them.
+-- | Natural numbers, basic operations, conversion functions, and other similar singletons
 module NaturalsBase where
--- splitting this from Naturals; this part doesn't require UndecidableInstances or AllowAmbiguousTypes
 
 import Data.Constraint
 
@@ -56,7 +54,8 @@ instance KnownNat 'Z where
 instance KnownNat n => KnownNat ('S n) where
     nat = NS nat
 
-
+-- | The class of known lists of naturals.
+-- The empty list is always known, and if @n@ and @ns@ are known, then so is @n ': ns@.
 class KnownNatList ns where
     nats :: TList Nat ns
 
@@ -100,6 +99,8 @@ deriving instance Eq (Boolean b)
 
 -- * Functions
 
+-- | Digit constants for convenience; using these we can write decimal numbers:
+-- @na9 &| na1 &| na2 :: Nat (N9 .| N1 .| N2)@. (We should probably rename these.)
 n0 :: N
 n1 :: N
 n2 :: N

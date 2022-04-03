@@ -1,3 +1,4 @@
+-- | Natural number arithmetic
 module NaturalsFuns where
 
 import Data.Constraint
@@ -25,6 +26,10 @@ n      -| NZ     = n
 NZ     *| _ = NZ
 (NS n) *| m = m +| (n *| m)
 
+-- | Natural singleton concatenation
+(&|) :: forall n m. Nat n -> Nat m -> Nat (n .| m)
+n &| m = (n *| naD) +| m
+
 -- | Proof that @f :: Fin 'Z@ if and only if @f@ is @undefined@
 fin0 :: Fin 'Z -> Void
 fin0 f = case f of {} -- there is no constructor for @Fin 'Z@, so we can discharge @f@ by simply pattern matching into an empty case expression
@@ -40,6 +45,7 @@ toFin :: Nat n -> Nat m -> Fin (n + 'S m)
 toFin NZ m     = toFZ m
 toFin (NS n) m = finS \\ know (n +| NS m) $ toFin n m
 
+-- | The product of a list of naturals
 prod :: SList ns -> Nat (Prod ns)
 prod XNil = NS NZ
 prod (XCons n ns) = n *| prod ns

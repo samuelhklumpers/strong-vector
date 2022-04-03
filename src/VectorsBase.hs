@@ -1,8 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | This module defines a fixed-size vector datatype,
--- and includes the instances and tools to allow for user-friendly manipulation.
+-- | Vectors, basic operations, and construction/extraction functions.
 module VectorsBase where
 
 import Prelude hiding (splitAt, (++), zipWith, take, drop )
@@ -21,7 +20,6 @@ import Data.Functor.Rep
 import Naturals
 import SingBase
 import Data.Proxy (Proxy)
-import Data.Data (Proxy(Proxy))
 
 
 -- | The type for vectors with known size
@@ -41,7 +39,7 @@ instance Functor (Vec n) where
     fmap f (VC x v) = VC (f x) (fmap f v)
 
 -- | Note that this instance is forced to use @full@ for @pure@,
--- unlike unsized vectors of lists which use the singleton @pure x = [x]@.
+-- unlike unsized vectors or lists which use the singleton @pure x = [x]@.
 instance KnownNat n => Applicative (Vec n) where
     pure x = full x nat
 
@@ -146,13 +144,11 @@ unfoldN (NS n) f z = VC a (unfoldN n f s) where
 unfold :: KnownNat n => (s -> (a, s)) -> s -> Vec n a
 unfold = unfoldN nat
 
-dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f ('S k) -> Apply f k) -> Vec n a -> Apply f n -> Apply f N0
+-- | Dependent vector fold. If @f :: N ~> *@ represents a natural index family and @v :: Vec n a@, then folding @dfold@ applies the folding function @n@ times,
+-- resulting in a value of the type @f@ applied to @n@.
+dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
 dfold _ _ VN z = z
-dfold p f (VC a v) z = dfold p f v (f (size v) a z)
-
-dfold' :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
-dfold' _ _ VN z = z
-dfold' p f (VC a v) z = f (size v) a (dfold' p f v z)
+dfold p f (VC a v) z = f (size v) a (dfold p f v z)
 
 -- | @iterateN n f x@ returns a vector of size @n@ of repeated applications of @f@ to @x@
 iterateN :: Nat n -> (a -> a) -> a -> Vec n a
