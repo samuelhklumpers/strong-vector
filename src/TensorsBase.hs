@@ -4,14 +4,14 @@ module TensorsBase where
 
 import Data.Distributive
 import Data.Functor.Rep
-import GHC.Base (Any)
+import GHC.Base hiding (Nat, TyCon)
 
 import Naturals
-    ( Nat(..), N(S), Fin, N0, KnownNatList(..), Length, Prod, prod )
 import VectorsBase
 import SingBase
 import Data.Proxy (Proxy (Proxy))
 import Unsafe.Coerce (unsafeCoerce)
+import Prelude hiding (zipWith)
 
 
 -- | The type for tensors with known dimensions.
@@ -28,6 +28,18 @@ deriving instance Show a => Show (Tensor ix a)
 instance Functor (Tensor ix) where
     fmap f (TZ a) = TZ (f a)
     fmap f (TC vs) = TC (fmap (fmap f) vs)
+
+instance KnownNatList ix => Applicative (Tensor ix) where
+    pure = pureRep
+    liftA2 = zipWithT
+
+instance Foldable (Tensor ix) where
+  foldMap f (TZ a) = f a
+  foldMap f (TC v) = foldMap (foldMap f) v
+
+zipWithT :: (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
+zipWithT f (TZ a) (TZ b) = TZ (f a b)
+zipWithT f (TC v) (TC w) = TC $ zipWith (zipWithT f) v w
 
 instance KnownNatList ix => Distributive (Tensor ix) where
     distribute = distributeRep
@@ -160,3 +172,24 @@ reshape t = enshape (flatten t)
 enumT :: TList Nat ns -> Tensor ns (TList Fin ns)
 enumT XNil         = TZ XNil
 enumT (XCons n ns) = TC $ fmap (flip fmap (enumT ns) . XCons) (enumFin n)
+
+directMul :: Num a => Tensor ns a -> Tensor ns a -> Tensor ns a
+directMul = zipWithT (*)
+
+frobenius :: Num a => Tensor ns a -> Tensor ns a -> a
+frobenius a b = sum $ directMul a b
+
+squared :: Num a => Tensor ns a -> a
+squared a = frobenius a a
+
+matMul :: forall n m k a. (KnownNat n, KnownNat m, KnownNat k, Num a) => Tensor '[n, m] a -> Tensor '[m, k] a -> Tensor '[n, k] a
+matMul (TC v) s = TC $ fmap h v where
+    s' :: Tensor '[k, m] a
+    s' = transpose' na0 na1 s
+
+    s'' :: Vec k (Tensor '[m] a)
+    s'' = case s' of
+        TC w -> w
+
+    h :: Tensor '[m] a -> Tensor '[k] a
+    h r = TC $ fmap (TZ . frobenius r) s'' 
