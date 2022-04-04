@@ -45,6 +45,8 @@ enumList (XCons n ns) = concatMap ((`fmap` enumList ns) . XCons) (enumFin n)
 type SMat m n a = STensor (n ': m ': '[]) a
 type MapMat m n a = Map (TList Fin (n ': m ': '[])) a
 
+
+-- | Sparse matrix multiplication in O(|mnMap|*p + |npMap|*m), which is faster than the trivial O(mnp + m^2p) when the matrices are sparse (less than min(m,n,p) elements)
 matMult :: forall m n p a. (Num a, KnownNat m, KnownNat n, KnownNat p) => SMat m n a -> SMat n p a -> SMat m p a
 matMult (STensor sV mnMap) np@(STensor sV2 npMap) = STensor (sV * sV2) dnew
         where -- All required products from d1 and corresponding d2 (or sparse) elements.
