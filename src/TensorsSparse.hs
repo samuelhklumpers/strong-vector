@@ -45,56 +45,57 @@ enumList (XCons n ns) = concatMap ((`fmap` enumList ns) . XCons) (enumFin n)
 type SMat m n a = STensor (n ': m ': '[]) a
 type MapMat m n a = Map (TList Fin (n ': m ': '[])) a
 
-matMult :: forall m n p. (KnownNat m, KnownNat n, KnownNat p) => SMat m n Int -> SMat n p Int -> SMat m p (Int, Int)
-matMult mn@(STensor sV mnMap) np@(STensor sV2 npMap) = STensor (sV * sV2, sV * sV2) newDict
-        where d1 :: MapMat m p (Int, Int)
-              d1 = foldr (combine np) Map.empty (Map.toList mnMap)
-              d2 = foldr (combine2 mn) Map.empty (Map.toList npMap)
-              dunion = Map.unionWith tuplePlus d1 d2
+matMult :: forall m n p a. (Num a, KnownNat m, KnownNat n, KnownNat p) => SMat m n a -> SMat n p a -> SMat m p a
+matMult (STensor sV mnMap) np@(STensor sV2 npMap) = STensor (sV * sV2) dnew
+        where -- All required products from d1 and corresponding d2 (or sparse) elements.
+              d1 = foldr combineNp Map.empty (Map.toList mnMap)
+              -- All remaining products from d2 and only corresponding sparse (missing) values from d2
+              d2 = foldr combineMn Map.empty (Map.toList npMap)
               n = toInt (nat :: Nat n)
-              newDict :: MapMat m p (Int, Int)
-              newDict = fmap (\(v, count) -> (v + (n - count) * sV * sV2, count)) dunion
-            --   newDict = dunion
+              -- "count" counts the number of times a value was added to that index.
+              -- In normal matrix multiplication, the sum of n products are added to each index.
+              -- Hence we need to add the missing products for sparse values: (n-count) * sV * sV2
+              dnew = fmap (\(v, count) -> v + fromIntegral (n - count) * sV * sV2) 
+                          (Map.unionWith tuplePlus d1 d2)
 
-tuplePlus (a,b) (c,d) = (a + c, b + d)
+              combineNp :: (Num a, KnownNat p) => (TList Fin (n ': m ': '[]), a) -> MapMat m p (a, Int) -> MapMat m p (a, Int)
+              combineNp (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus npProducts
+                  where npProducts = Map.fromList $ [(getIndex k, (getValue k, 1)) | k <- toList $ enumFin nat] 
+                        getIndex k = XCons k (XCons i XNil)  -- k i => (i, k)
+                        getValue k = val * getST np (XCons k (XCons j XNil))
 
-combine :: (KnownNat p) => SMat n p Int -> (TList Fin (n ': m ': '[]), Int) -> MapMat m p (Int, Int) -> MapMat m p (Int, Int)
-combine np (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus (someFunc nat i j val np)
+              -- Return 0 as second tuple element value if the product is already dealt for by combineNp
+              combineMn :: (Num a, KnownNat m) => (TList Fin (p ': n ': '[]), a) -> MapMat m p (a, Int) -> MapMat m p (a, Int)
+              combineMn (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus mnProducts
+                  where mnProducts = Map.fromList $ [(getIndex k, getValue k) | k <- toList $ enumFin nat] 
+                        getIndex k = XCons j (XCons k XNil)
+                        getValue k | Map.member (XCons i (XCons k XNil)) mnMap = (0, 0)
+                                   | otherwise                                 = (val * sV, 1)
+                  -- i, j is index in np matrix
+                  -- for k in 1..m
+                  --  let b = (k, i) in mn (but skip if is in the dict. Only do if it is the sparse value)
+                  --  add val * b to to (k, i) in output.
 
-combine2 :: (KnownNat m) => SMat m n Int -> (TList Fin (p ': n ': '[]), Int) -> MapMat m p (Int, Int) -> MapMat m p (Int, Int)
-combine2 mn (XCons j (XCons i XNil), val) = Map.unionWith tuplePlus (someFunc2 nat i j val mn)
 
--- i, j is index in mn matrix. 
--- For k in 1..p:
---  let b = (j, k) in np
---  add val * b to (i, k) in output. So output is just fromList $ [((i, k), val * b)]
--- something like
-someFunc :: Nat p -> Fin m -> Fin n -> Int -> SMat n p Int -> MapMat m p (Int, Int)
-someFunc p i j val np = Map.fromList $ [(getIndex k, (getValue k, 1)) | k <- toList $ enumFin p] 
-    where getIndex k = XCons k (XCons i XNil)  -- k i => (i, k)
-          getValue k = val * getST np (XCons k (XCons j XNil))
-
--- i, j is index in np matrix
--- for k in 1..m
---  let b = (k, i) in mn (but skip if is in the dict. Only do if it is the sparse value)
---  add val * b to to (k, i) in output.
-someFunc2 :: Nat m -> Fin n -> Fin p -> Int -> SMat m n Int -> MapMat m p (Int, Int)
-someFunc2 m i j val (STensor sV d) = Map.fromList $ [(getIndex k, getValue k) | k <- toList $ enumFin m] 
-    where getIndex k = XCons j (XCons k XNil)
-          getValue k | Map.member (XCons i (XCons k XNil)) d = (0, 0) -- we want to use 0 here if the value exists in the dictionary of mn (otherwise we would duplicate)
-                     | otherwise        = (val * sV, 1)
 
 -- 2x3 matrix
 twoByThree :: SMat N2 N3 Int
-twoByThree = STensor 3 (Map.fromList $ [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
+twoByThree = STensor 3 (Map.fromList [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
 
 threeByTwo :: SMat N3 N2 Int
-threeByTwo = STensor 7 $ Map.fromList $ [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons (FS $ FS FZ) XNil), 3)]
+threeByTwo = STensor 7 $ Map.fromList [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons (FS $ FS FZ) XNil), 3)]
 
 
 -- 2x3 matrix
 aa :: SMat N2 N3 Int
-aa = STensor 3 (Map.fromList $ [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
+aa = STensor 3 (Map.fromList [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ) (XCons (FS FZ) XNil), 6), (XCons (FS FZ) (XCons (FS FZ) XNil), 4)])
 
 ab :: SMat N3 N2 Int
-ab = STensor 3 $ Map.fromList $ [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons FZ XNil), 3), (XCons FZ (XCons FZ XNil), 2), (XCons FZ (XCons (FS FZ) XNil), 1)]
+ab = STensor 3 $ Map.fromList [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons FZ XNil), 3), (XCons FZ (XCons FZ XNil), 2), (XCons FZ (XCons (FS FZ) XNil), 1)]
+
+
+
+
+-- | Helper for adding two 2-tuples elementwise
+tuplePlus :: (Num a, Num b) => (a, b) -> (a, b) -> (a, b)
+tuplePlus (a,b) (c,d) = (a + c, b + d)
