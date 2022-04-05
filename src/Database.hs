@@ -1,104 +1,48 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Database where
 import Vectors
 import NaturalsBase
 import SingBase
-
-import Control.Lens
-import Control.Monad.ST
-
-import Data.Constraint
-
-import Data.STRef
-
-
-import Naturals
-import VectorsBase
 import Tensors
 
-import NaturalsFams (Length)
+-- data STRING = CEND | CA STRING | CB STRING | CC STRING deriving (Eq, Show)
 
-data STRING = CZ | CA STRING | CB STRING | CC STRING deriving (Eq, Show)
--- Note that -XDataKinds lifts @N@ to a kind, and @Z@ and @S@ to type constructors
+data C = CA | CB | CC deriving (Eq, Show)
 
--- | The singleton type for string.
-data STIN c where
-    SCZ :: STIN 'CZ
-    SCA :: STIN c -> STIN ('CA c)
-    SCB :: STIN c -> STIN ('CB c)
-    SCC :: STIN c -> STIN ('CC c)
+data Character c where
+    SCA :: Character 'CA
+    SCB :: Character 'CB
+    SCC :: Character 'CC
 
-data MyList a = MNil | MCons Bool (MyList a)
+instance Show (Character c) where
+    show SCA = "a"
+    show SCB = "b"
+    show SCC = "c"
 
-abc :: STIN ('CA ('CB ('CC 'CZ)))
-abc = SCA $ SCB $ SCC SCZ
+type STRING = TList Character
 
-aa :: STIN ('CA 'CZ)
-aa = SCA SCZ
+data Table n m r = Table (Vec n String) (Tensor (m ': r ': '[]) String) deriving (Show)
 
-aToB :: STIN ('CA 'CZ) -> STIN ('CB 'CZ)
-aToB _ = SCB SCZ
+table22 :: Table N2 N2 N2
+table22 = Table header body
 
-aToBTest = aToB aa
+header :: Vec N2 String
+header = VC "col1" $ VC "col2" VN
 
+body :: Tensor (N2 ': N2 ': '[]) String
+body = TC (VC (TC (VC (TZ "a") (VC (TZ "b") VN))) (VC (TC (VC (TZ "c") (VC (TZ "d") VN))) VN))
 
+newRow :: Tensor ( N2 ': '[]) [Char]
+newRow = TC (VC (TZ "1") (VC (TZ "2") VN))
 
+addRow :: Tensor (m ': '[]) String -> Table n m r ->  Table n m ('S r)
+addRow (TC _) (Table h (TC xs)) = Table h (TC (fmap (addToFront "hoi") xs))
 
--- toStringMask :: STRING -> [STRING] -> XList 
--- toStringMask s []                 = XNil
-toStringMask s []                 = MNil
-toStringMask s (x:xs) | x == s    = MCons True $ toStringMask s xs
-                      | otherwise = MCons False $ toStringMask s xs
+addCol :: String -> Tensor (r ': '[]) String -> Table n m r ->  Table ('S n) ('S m) r
+addCol newHeader ts (Table h (TC xs)) = Table newHeaders (TC (VC ts xs))
+    where newHeaders = VC newHeader h
 
--- isIt :: STRING -> STRING -> Boolean b 
-isIt :: String -> String -> Bool
-isIt c1 c2 | c1 == c2  = True
-           | otherwise = False
-
--- theMask2 :: SList '[ 'False, 'True, 'False, 'True]
-
--- | The @'STRING@ counting type family
--- type family Count (bs :: [STRING]) :: N where
---     Count '[] = 'Z
---     Count ('True ': bs) = 'S (Count bs)
---     Count ('False ': bs) = Count bs
-
-type family Countt (s :: STRING) (bs :: [STRING]) :: N where
-    Countt _ '[]                 = 'Z
-    Countt (c ss) (c _ ': xs)    = 'S (Countt (CA ss) xs)
-    Countt (_ ss) ('CA _ ': xs)  = (Countt (CA ss) xs)
-    Countt s (_ ': xs)           = (Countt s xs)
-
-
-type instance Sing = STIN
-
-
-mask2 :: Vec (Length bs) a -> SList bs -> Vec (Countt (CA CZ) bs) a
-mask2 VN XNil = VN
-mask2 (VC a v) (XCons (SCA _) bv) = VC a (mask2 v bv)
-mask2 (VC _ v) (XCons (SCB _) bv) = mask2 v bv
-mask2 (VC _ v) (XCons (SCC _) bv) = mask2 v bv
-mask2 (VC _ v) (XCons SCZ bv)     = mask2 v bv
-
-
-caa :: Vec('S ('S 'Z)) STRING
-caa = VC (CA CZ) $ VC (CA $ CB CZ) VN
-
-demo = mask2 caa theMask
-
--- theMask :: SList '[ 'CA, 'CB ]
--- theMask :: SList '[ 'CA 'CZ, 'CZ]
-theMask = XCons (SCA SCZ) $ XCons SCZ XNil
-
-
-theMask2 :: SList '[ 'False]
-theMask2 = XCons BF XNil
-
-
-instance SingKind STRING where
-    type Demote STRING = STRING
-    fromSing (SCA s) = CA (fromSing s)
-    fromSing (SCB s) = CB (fromSing s)
-    fromSing (SCC s) = CC (fromSing s)
-    fromSing SCZ     = CZ
+addToFront :: String -> Tensor (m ': '[]) String -> Tensor ('S m ': '[]) String
+addToFront s (TC VN)         = TC (VC (TZ s) VN)
+addToFront s (TC (VC t ts)) = TC (VC (TZ s) (VC t ts))
