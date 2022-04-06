@@ -32,6 +32,8 @@ library
       NaturalsFuns
       NaturalsProofs
       SingBase
+      SwapH
+      TensorBlock
       Tensors
       TensorsBase
       TensorsSparse
