@@ -71,3 +71,13 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x '[]      = 'False
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
+
+
+class Known s where
+    auto :: Sing s
+
+instance Known '[] where
+    auto = XNil
+
+instance (Known s, Known ss) => Known (s ': ss) where
+    auto = XCons auto auto

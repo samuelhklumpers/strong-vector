@@ -54,6 +54,18 @@ instance KnownNat 'Z where
 instance KnownNat n => KnownNat ('S n) where
     nat = NS nat
 
+instance Known 'Z where
+    auto = NZ
+
+instance Known n => Known ('S n) where
+    auto = NS auto
+
+instance Known 'True where
+    auto = BT
+
+instance Known 'False where
+    auto = BF
+
 -- | The class of known lists of naturals.
 -- The empty list is always known, and if @n@ and @ns@ are known, then so is @n ': ns@.
 class KnownNatList ns where
