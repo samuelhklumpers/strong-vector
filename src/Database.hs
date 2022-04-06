@@ -1,10 +1,12 @@
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE IncoherentInstances #-} -- only used for show instances
 
 module Database where
-import Vectors
+import Vectors hiding ((++))
 import NaturalsBase
 import SingBase
 import Tensors
+import Naturals (Length)
 
 -- data STRING = CEND | CA STRING | CB STRING | CC STRING deriving (Eq, Show)
 
@@ -22,27 +24,43 @@ instance Show (Character c) where
 
 type STRING = TList Character
 
-data Table n m r = Table (Vec n String) (Tensor (m ': r ': '[]) String) deriving (Show)
+data Table c r = Table (TList STRING c) (Tensor (Length c ': r ': '[]) String) deriving (Show)
 
-table22 :: Table N2 N2 N2
-table22 = Table header body
+instance Show (STRING s) where
+    show XNil                    = ""
+    show (XCons c cs)            = show c ++ show cs
 
-header :: Vec N2 String
-header = VC "col1" $ VC "col2" VN
+instance Show (TList STRING h) where
+    show XNil                      = ""
+    show (XCons XNil xs)           = show " - " ++ show xs
+    show (XCons (XCons c cs) XNil) = show c ++ show cs
+    show (XCons (XCons c cs) xs)   = show c ++ show cs ++ ":" ++ show xs
 
-body :: Tensor (N2 ': N2 ': '[]) String
-body = TC (VC (TC (VC (TZ "a") (VC (TZ "b") VN))) (VC (TC (VC (TZ "c") (VC (TZ "d") VN))) VN))
-
-newRow :: Tensor ( N2 ': '[]) [Char]
+newRow :: Tensor ( N2 ': '[]) String
 newRow = TC (VC (TZ "1") (VC (TZ "2") VN))
 
-addRow :: Tensor (m ': '[]) String -> Table n m r ->  Table n m ('S r)
-addRow (TC _) (Table h (TC xs)) = Table h (TC (fmap (addToFront "hoi") xs))
+insertRow :: Tensor (Length c ': '[]) String -> Table c r ->  Table c ('S r)
+insertRow (TC _) (Table h (TC xs)) = Table h (TC (fmap (addToFront "hoi") xs))
 
-addCol :: String -> Tensor (r ': '[]) String -> Table n m r ->  Table ('S n) ('S m) r
+addCol :: STRING s -> Tensor (r ': '[]) String -> Table c r ->  Table (s ': c) r
 addCol newHeader ts (Table h (TC xs)) = Table newHeaders (TC (VC ts xs))
-    where newHeaders = VC newHeader h
+    where newHeaders = XCons newHeader h
 
 addToFront :: String -> Tensor (m ': '[]) String -> Tensor ('S m ': '[]) String
 addToFront s (TC VN)         = TC (VC (TZ s) VN)
 addToFront s (TC (VC t ts)) = TC (VC (TZ s) (VC t ts))
+
+ca :: STRING ( 'CC ': 'CA ': '[])
+ca = XCons SCC $ XCons SCA XNil
+
+bb :: STRING ( 'CB ': 'CB ': '[])
+bb = XCons SCB $ XCons SCB XNil
+
+header :: TList STRING (('CC ': 'CA ': '[]) ':  ('CB ': 'CB ': '[]) ': '[])
+header = XCons ca $ XCons bb XNil
+
+body :: Tensor (N2 ': N2 ': '[]) String
+body = TC (VC (TC (VC (TZ "a") (VC (TZ "b") VN))) (VC (TC (VC (TZ "c") (VC (TZ "d") VN))) VN))
+
+table22 :: Table '[ '[ 'CC, 'CA], '[ 'CB, 'CB]] N2
+table22 = Table header body
