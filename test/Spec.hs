@@ -18,6 +18,9 @@ import Data.Foldable (traverse_)
 import Control.Lens
 import Control.Monad.ST
 import Data.STRef
+import Test.Hspec.QuickCheck
+import TensorsBase
+import TensorsSparse
 
 
 instance Arbitrary (Vec 'Z a) where
@@ -25,6 +28,12 @@ instance Arbitrary (Vec 'Z a) where
 
 instance (Arbitrary a, Arbitrary (Vec n a)) => Arbitrary (Vec ('S n) a) where
     arbitrary = VC <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (Tensor '[] a) where
+    arbitrary = TZ <$> arbitrary
+
+instance Arbitrary (Vec n (Tensor ns a)) => Arbitrary (Tensor (n ': ns) a) where
+    arbitrary = TC <$> arbitrary
 
 type Vec4 = Vec N4
 
@@ -190,13 +199,24 @@ unitTests = test [
         "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
         "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 myShape22 ~=? myTensor22,
         "flatten . reshape == flatten"                       ~: flatten (reshape myReshape4 myShape22) ~=? flatten myReshape4,
-        "dfold double [2,3,1,3] == [2,2,3,3,1,1,3,3]"       ~: doubleFold ~=? doubleFoldRes,
+        "dfold double [2,3,1,3] == [2,2,3,3,1,1,3,3]"        ~: doubleFold ~=? doubleFoldRes,
         --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
         --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
         --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',
         "[0..5][[1,1,3]] == [1,1,3]"                         ~: multiGet enum6 mfs ~=? mfs
         -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
+
+sparseMatMulTest :: Int -> Int -> Tensor '[ N2, N3] Bool -> Tensor '[ N3, N4] Bool -> Tensor '[ N2, N3] Int -> Tensor '[ N3, N4] Int -> Bool
+sparseMatMulTest x y z z' a b = matMul a' b' == fromSparseT (matMult sb sa) where
+    m = fmap asInt z
+    m' = fmap asInt z'
+    asInt :: Bool -> Int
+    asInt v = if v then 1 else 0
+    a' = (+x) <$> directMul m a
+    b' = (+y) <$> directMul m' b
+    sa = toSparseT x a'
+    sb = toSparseT y b'
 
 main :: IO ()
 main = do
@@ -214,3 +234,39 @@ main = do
             propertyTestLaws (monadLaws (Proxy @Vec4)) *>
             propertyTestLaws (foldableLaws (Proxy @Vec4)) *>
             propertyTestLaws (traversableLaws (Proxy @Vec4))
+
+        describe "Sparse" $
+            prop "sparseMul is matMul" sparseMatMulTest
+
+
+-- demos
+demoFull :: Vec N4 Int
+demoFull = pure 3 
+
+demoEnum :: Vec N4 (Fin N4)
+demoEnum = enumFin nat
+
+demoSlice :: Vec N9 Int
+demoSlice = runST $ do
+    v <- newSTRef (pure 0)
+    let w = pure 3
+
+    v & vSlice na1 na3 na2 na2 .:= w
+
+    readSTRef v
+
+demoMask :: Vec N4 Int
+demoMask = runST $ do
+    v <- newSTRef (pure 0)
+    let w = pure 1
+    let m = XCons BT $ XCons BF $ XCons BT $ XCons BF XNil
+
+    v & vMask m .:= w
+
+    readSTRef v
+
+demoEnshape :: Tensor '[N3, N2] Int
+demoEnshape = enshape (finToInt <$> enumFin nat) (XCons na3 $ XCons na2 XNil)
+
+demoTransp :: Tensor '[N2, N3] Int
+demoTransp = transpose' na0 na1 demoEnshape

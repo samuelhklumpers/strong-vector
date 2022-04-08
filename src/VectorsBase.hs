@@ -128,8 +128,7 @@ concatenate (VC v vs) = v ++ concatenate vs
 
 -- | Generate a vector by applying a function to a range of indices
 generateN :: Nat n -> (Fin n -> a) -> Vec n a
-generateN NZ _     = VN
-generateN (NS n) f = VC (f FZ) (generateN n (f . finS \\ know n))
+generateN n f = f <$> enumFin n
 
 -- | Generate a vector by applying a function to a range of indices, inferring the size from the type
 generate :: KnownNat n => (Fin n -> a) -> Vec n a
@@ -211,6 +210,8 @@ enumFin :: Nat n -> Vec n (Fin n)
 enumFin NZ          = VN
 enumFin (NS NZ)     = VC FZ VN
 enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n)))
+
+
 
 -- | Tuple the elements of a vector with their indices
 enumerate :: Vec n a -> Vec n (Fin n, a)

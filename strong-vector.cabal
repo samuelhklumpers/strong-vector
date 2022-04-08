@@ -32,10 +32,14 @@ library
       NaturalsFuns
       NaturalsProofs
       SingBase
+      TensorBlock
       Tensors
+      TensorsBase
+      TensorsSparse
       Vectors
       VectorsBase
       VectorsLens
+      VectorsSparse
   other-modules:
       Paths_strong_vector
   hs-source-dirs:

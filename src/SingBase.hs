@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 
 -- | The singleton family, function symbol applications, the [] singleton SList and it's generalization XList
@@ -42,6 +43,10 @@ type SList = XList SingSym
 -- | Specialized version of @XList@ for type constructors
 type TList tc = XList (TyCon tc)
 
+-- Ordering for Sparse Tensor
+deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
+deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
+deriving instance (forall x. Show (tc x)) => Show (TList tc ix)
 type instance Sing = SList
 
 -- | The class of singleton kinds. If @k@ is an instance, then @k@ should have an associated singleton.
@@ -66,3 +71,13 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x '[]      = 'False
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
+
+
+class Known s where
+    auto :: Sing s
+
+instance Known '[] where
+    auto = XNil
+
+instance (Known s, Known ss) => Known (s ': ss) where
+    auto = XCons auto auto
