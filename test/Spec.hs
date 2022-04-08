@@ -237,3 +237,36 @@ main = do
 
         describe "Sparse" $
             prop "sparseMul is matMul" sparseMatMulTest
+
+
+-- demos
+demoFull :: Vec N4 Int
+demoFull = pure 3 
+
+demoEnum :: Vec N4 (Fin N4)
+demoEnum = enumFin nat
+
+demoSlice :: Vec N9 Int
+demoSlice = runST $ do
+    v <- newSTRef (pure 0)
+    let w = pure 3
+
+    v & vSlice na1 na3 na2 na2 .:= w
+
+    readSTRef v
+
+demoMask :: Vec N4 Int
+demoMask = runST $ do
+    v <- newSTRef (pure 0)
+    let w = pure 1
+    let m = XCons BT $ XCons BF $ XCons BT $ XCons BF XNil
+
+    v & vMask m .:= w
+
+    readSTRef v
+
+demoEnshape :: Tensor '[N3, N2] Int
+demoEnshape = enshape (finToInt <$> enumFin nat) (XCons na3 $ XCons na2 XNil)
+
+demoTransp :: Tensor '[N2, N3] Int
+demoTransp = transpose' na0 na1 demoEnshape

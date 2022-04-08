@@ -36,8 +36,9 @@ data Block bs a where
 -- <2, 3 | 4 >
 -- -----------
 
-bL :: Vec n (Block bs a) -> Block ('[n] ': bs) a
-bL v = BS v BL
+-- | Concatenate a vector of blocks into a larger block
+bConcat :: Vec n (Block bs a) -> Block ('[n] ': bs) a
+bConcat v = BS v BL
 
 instance Functor (Block bs) where
     fmap f (BZ a) = BZ (f a)
@@ -48,11 +49,13 @@ instance Known bs => Applicative (Block bs) where
     pure x = fullB x auto
     liftA2 = zipWithB
 
+-- | @full x n@ returns a block of shape @bs@ of copies of @x@
 fullB :: a -> SList bs -> Block bs a
 fullB a XNil                    = BZ a
 fullB _ (XCons XNil _)          = BL
 fullB a (XCons (XCons n ns) bs) = BS (full (fullB a bs) n) (fullB a (XCons ns bs))
 
+-- | Zip two blocks with a binary operation
 zipWithB :: (a -> b -> c) -> Block bs a -> Block bs b -> Block bs c
 zipWithB f (BZ a) (BZ b) = BZ (f a b)
 zipWithB _ BL _ = BL
@@ -71,6 +74,7 @@ type family Stacken (bs :: [[N]]) :: [N] where
     Stacken '[] = '[]
     Stacken (ns ': nss) = Sum ns ': Stacken nss
 
+-- | Convert a block tensor to a tensor, forgetting blockiness
 blockTensor :: Block bs a -> Tensor (Stacken bs) a
 blockTensor (BZ a) = TZ a
 blockTensor BL = TC VN

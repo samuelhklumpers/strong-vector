@@ -7,7 +7,7 @@ import Data.Functor.Rep
 import GHC.Base hiding (Nat, TyCon)
 
 import Naturals
-import VectorsBase
+import VectorsBase hiding ((++))
 import SingBase
 import Data.Proxy (Proxy (Proxy))
 import Unsafe.Coerce (unsafeCoerce)
@@ -23,7 +23,20 @@ data Tensor ix a where
 
 deriving instance Eq a => Eq (Tensor ix a)
 
-deriving instance Show a => Show (Tensor ix a)
+type family Append (xs :: [k]) (x :: k) :: [k] where
+    Append '[]       x = x ': '[]
+    Append (x ': xs) y = x ': Append xs y
+
+showT :: Show a => Nat (Length ix) -> Tensor ix a -> String
+showT _ (TZ a) = show a -- :))
+showT d@(NS d') (TC v) = let v' = fmap (showT d') v in
+    if toInt d <= 1 then
+        "<" ++ unwords (toList v') ++ ">"
+    else
+        "<" ++ unlines (toList v') ++ ">"
+
+instance (Show a, KnownNat (Length ix)) => Show (Tensor ix a) where
+    show = showT nat
 
 instance Functor (Tensor ix) where
     fmap f (TZ a) = TZ (f a)
@@ -121,7 +134,7 @@ instance (ys ~ Put xs i x) => Putted xs i x ys where
     putX p (XCons x xs) (Fs i) y = XCons x (putX p xs i y)
 
 instance (ys ~ Put xs i x) => Putted' xs i x ys where
-    putX' _ XNil _ _              = undefined 
+    putX' _ XNil _ _              = undefined
     putX' _ (XCons _ xs) NZ y     = XCons y xs
     putX' p (XCons x xs) (NS i) y = XCons x (putX' p xs i y)
 
@@ -192,4 +205,4 @@ matMul (TC v) s = TC $ fmap h v where
         TC w -> w
 
     h :: Tensor '[m] a -> Tensor '[k] a
-    h r = TC $ fmap (TZ . frobenius r) s'' 
+    h r = TC $ fmap (TZ . frobenius r) s''
