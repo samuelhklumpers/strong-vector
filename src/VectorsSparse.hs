@@ -12,6 +12,8 @@ import Data.Maybe
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Applicative (liftA2)
 
+import SingBase
+
 -- saved in a dictionary.
 data SVec n a = SVec a (Map (Fin n) a) deriving (Show)
 
@@ -49,11 +51,11 @@ sparsify :: Eq a => SVec n a -> SVec n a
 sparsify (SVec sV d) = SVec sV (Map.filter (/= sV) d)
 
 -- | supply generateN with getS to generate the vector
-fromSparse :: KnownNat n => SVec n a -> Vec n a
-fromSparse sVec = generateN nat $ getS sVec
+fromSparse :: Known n => SVec n a -> Vec n a
+fromSparse sVec = generateN auto $ getS sVec
 
-toSparse :: forall a n . (KnownNat n, Eq a) => a -> Vec n a -> SVec n a
-toSparse sparseVal = go (enumFin nat)
+toSparse :: forall a n . (Known n, Eq a) => a -> Vec n a -> SVec n a
+toSparse sparseVal = go (enumFin auto)
        where go :: Eq a => Vec p (Fin n) -> Vec p a -> SVec n a
              go VN VN                                = SVec sparseVal empty
              go (VC f fs) (VC v vs) | v == sparseVal = svec

@@ -244,7 +244,7 @@ demoFull :: Vec N4 Int
 demoFull = pure 3 
 
 demoEnum :: Vec N4 (Fin N4)
-demoEnum = enumFin nat
+demoEnum = enumFin auto
 
 demoSlice :: Vec N9 Int
 demoSlice = runST $ do
@@ -266,7 +266,7 @@ demoMask = runST $ do
     readSTRef v
 
 demoEnshape :: Tensor '[N3, N2] Int
-demoEnshape = enshape (finToInt <$> enumFin nat) (XCons na3 $ XCons na2 XNil)
+demoEnshape = enshape (finToInt <$> enumFin auto) (XCons na3 $ XCons na2 XNil)
 
 demoTransp :: Tensor '[N2, N3] Int
 demoTransp = transpose' na0 na1 demoEnshape

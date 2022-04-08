@@ -73,6 +73,7 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x (y ': v) = Elem x v
 
 
+-- | This class associates singleton values to type-level values.
 class Known s where
     auto :: Sing s
 

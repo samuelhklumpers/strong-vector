@@ -64,7 +64,7 @@ zipWithB f (BS as ass) (BS bs bss) = BS (zipWith (zipWithB f) as bs) (zipWithB f
 -- | Convert a tensor to the trivial block tensor
 tensorBlock :: Tensor ns a -> Block (NewDim ns) a
 tensorBlock (TZ a) = BZ a
-tensorBlock (TC v) = bL (fmap tensorBlock v)
+tensorBlock (TC v) = bConcat (fmap tensorBlock v)
 
 type family Sum (ns :: [N]) :: N where
     Sum '[] = 'Z

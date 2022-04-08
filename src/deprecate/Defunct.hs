@@ -39,7 +39,7 @@ flatten (TC vs) = concatenate $ fmap flatten vs
 {-
 toShape :: Vec (Prod ix) a -> List ix -> Neg (ix :~: 'Nil) -> Tensor ix a
 toShape VN (LC n LN) c          = undefined -- TV VN
-toShape VN (LC n (LC nat li)) c = undefined -- _wy
+toShape VN (LC n (LC auto li)) c = undefined -- _wy
 toShape (VC a vec) ns c         = undefined -- _wt
 
 reshape :: Tensor ix a -> List ix' -> Neg (ix' :~: 'Nil) -> Prod ix :~: Prod ix' -> Tensor ix' a
@@ -84,10 +84,10 @@ minus' NZ (NS _) _             = Refl
 minus' (NS _) NZ (Witness _ d) = case temp d of {}
 minus' (NS a) (NS c) w = _
 
-lower' :: KnownNat ('S n) :- KnownNat n
+lower' :: Known ('S n) :- Known n
 lower' = unmapDict lower
 
-lower'' :: Proxy n -> KnownNat ('S n) :- KnownNat n
+lower'' :: Proxy n -> Known ('S n) :- Known n
 lower'' _ = unmapDict lower
 
 plusRightInj :: Nat n -> (n + m) :~: (n + k) -> m :~: k

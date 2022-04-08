@@ -35,14 +35,14 @@ showT d@(NS d') (TC v) = let v' = fmap (showT d') v in
     else
         "<" ++ unlines (toList v') ++ ">"
 
-instance (Show a, KnownNat (Length ix)) => Show (Tensor ix a) where
-    show = showT nat
+instance (Show a, Known (Length ix)) => Show (Tensor ix a) where
+    show = showT auto
 
 instance Functor (Tensor ix) where
     fmap f (TZ a) = TZ (f a)
     fmap f (TC vs) = TC (fmap (fmap f) vs)
 
-instance KnownNatList ix => Applicative (Tensor ix) where
+instance Known ix => Applicative (Tensor ix) where
     pure = pureRep
     liftA2 = zipWithT
 
@@ -54,10 +54,10 @@ zipWithT :: (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
 zipWithT f (TZ a) (TZ b) = TZ (f a b)
 zipWithT f (TC v) (TC w) = TC $ zipWith (zipWithT f) v w
 
-instance KnownNatList ix => Distributive (Tensor ix) where
+instance Known ix => Distributive (Tensor ix) where
     distribute = distributeRep
 
-instance KnownNatList ix => Representable (Tensor ix) where
+instance Known ix => Representable (Tensor ix) where
     type Rep (Tensor ix) = TList Fin ix
 
     tabulate = tabulateT
@@ -69,8 +69,8 @@ getT (TZ a)  XNil         = a
 getT (TC vs) (XCons i ix) = getT (get vs i) ix
 
 -- | Create a tensor from a generating function, provided the resulting dimensions are known
-tabulateT :: KnownNatList ix => (TList Fin ix -> a) -> Tensor ix a
-tabulateT = tabulateTN nats
+tabulateT :: Known ix => (TList Fin ix -> a) -> Tensor ix a
+tabulateT = tabulateTN auto
 
 -- | Generalization of @curry@ to @XList@.
 -- Converts a @(n+1)@-ary list function into a function taking one value which returns a @n@-ary list function.
@@ -78,7 +78,7 @@ xCurry :: (XList f (x ': xs) -> a) -> Apply f x -> XList f xs -> a
 xCurry f x xs = f (XCons x xs)
 
 -- | Create a tensor from a generating function, given the dimensions
-tabulateTN :: TList Nat ix -> (TList Fin ix -> a) -> Tensor ix a
+tabulateTN :: SList ix -> (TList Fin ix -> a) -> Tensor ix a
 tabulateTN ns f = fmap f (enumT ns)
 --tabulateTN XNil f = TZ (f XNil)
 --tabulateTN (XCons n ns) f = TC $ fmap (tabulateTN ns) (generateN n (xCurry f))
@@ -152,7 +152,7 @@ swapX i j xs = putX (Proxy @(Get xs j)) (putX (Proxy @(Get xs i)) xs j (getX xs 
     i' = lengthLemma (Proxy @(TyCon (Fin2 i))) (Proxy @(Get xs i)) (Proxy @xs) (Proxy @j) i
 
 -- | Unsafely transpose two dimensions of a tensor, where the dimensions of the input tensor are assumed to be swapped.
-transpose :: forall ix iy i j a. (KnownNatList ix, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor iy a -> Tensor ix a
+transpose :: forall ix iy i j a. (Known ix, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor iy a -> Tensor ix a
 transpose i j t = tabulateT $ getT t . swap i j
 
 -- | Axiom: @swap i j . swap i j == id@
@@ -161,11 +161,11 @@ swapLemma _ _ = unsafeCoerce
 
 -- | Unsafely transpose two dimensions of a tensor, where the dimensions of the output tensor are swapped.
 -- Tends to behave more nicely with respect to ambiguity.
-transpose' :: forall ix iy i j a. (KnownNatList iy, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor ix a -> Tensor iy a
+transpose' :: forall ix iy i j a. (Known iy, Swapped' ix i j iy) => Nat i -> Nat j -> Tensor ix a -> Tensor iy a
 transpose' i j t = transpose @iy i j $ swapLemma i j t
 
 -- | Safely transpose two dimensions of a tensor, where the dimensions of the input tensor are assumed to be swapped.
-transpose2 :: forall ix iy i j a. (KnownNatList ix, Swapped' ix i j iy) => Fin2 i (Length ix) -> Fin2 j (Length ix) -> Tensor iy a -> Tensor ix a
+transpose2 :: forall ix iy i j a. (Known ix, Swapped' ix i j iy) => Fin2 i (Length ix) -> Fin2 j (Length ix) -> Tensor iy a -> Tensor ix a
 transpose2 i j t = tabulateT $ getT t . swapX i j
 
 -- | Flatten a tensor into a vector.
@@ -182,7 +182,7 @@ enshape v (XCons n ns) = TC $ flip enshape ns <$> split n (prod ns) v
 reshape :: Prod ix ~ Prod iy => Tensor ix a -> SList iy -> Tensor iy a
 reshape t = enshape (flatten t)
 
-enumT :: TList Nat ns -> Tensor ns (TList Fin ns)
+enumT :: SList ns -> Tensor ns (TList Fin ns)
 enumT XNil         = TZ XNil
 enumT (XCons n ns) = TC $ fmap (flip fmap (enumT ns) . XCons) (enumFin n)
 
@@ -195,7 +195,7 @@ frobenius a b = sum $ directMul a b
 squared :: Num a => Tensor ns a -> a
 squared a = frobenius a a
 
-matMul :: forall n m k a. (KnownNat n, KnownNat m, KnownNat k, Num a) => Tensor '[n, m] a -> Tensor '[m, k] a -> Tensor '[n, k] a
+matMul :: forall n m k a. (Known n, Known m, Known k, Num a) => Tensor '[n, m] a -> Tensor '[m, k] a -> Tensor '[n, k] a
 matMul (TC v) s = TC $ fmap h v where
     s' :: Tensor '[k, m] a
     s' = transpose' na0 na1 s
