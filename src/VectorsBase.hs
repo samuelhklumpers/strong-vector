@@ -27,6 +27,27 @@ data Vec n a where
     VN :: Vec 'Z a
     VC ::  a -> Vec n a -> Vec ('S n) a
 
+data XVec :: forall n k. (k ~> *) -> Vec n k -> * where
+    XN  :: XVec f 'VN
+    XC  :: Apply f x -> XVec f xs -> XVec f ('VC x xs)
+
+type SVec = XVec SingSym
+type TVec tc = XVec (TyCon tc)
+
+type instance Sing = SVec
+
+type family ToVec (xs :: [k]) :: Vec (Length xs) k where
+    ToVec '[] = 'VN
+    ToVec (x ': xs) = 'VC x (ToVec xs)
+
+type family FromVec (xs :: Vec n k) :: [k] where
+    FromVec 'VN        = '[] 
+    FromVec ('VC x xs) = x ': FromVec xs
+
+toXVec :: XList f xs -> XVec f (ToVec xs)
+toXVec XNil         = XN
+toXVec (XCons x xs) = XC x $ toXVec xs
+
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
 

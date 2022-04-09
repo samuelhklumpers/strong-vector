@@ -26,6 +26,10 @@ data Fin n where
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
 
+data SFin :: forall n. N -> Fin n -> * where
+    SFZ :: SFin ('S n) 'FZ
+    SFS :: SFin ('S n) i -> SFin ('S ('S n)) ('FS i)
+
 deriving instance Ord (Fin n) 
 
 -- | The singleton type for boolean.
@@ -49,6 +53,7 @@ instance Known 'False where
 
 type instance Sing = Nat
 type instance Sing = Boolean
+
 
 instance SingKind Bool where
     type Demote Bool = Bool

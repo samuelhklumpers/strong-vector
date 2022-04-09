@@ -17,6 +17,7 @@ type family Sing :: k -> *
 data TyFun :: * -> * -> *
 -- | The type of type-level function symbols: by viewing @k1 ~> k2@ as the argument to @Apply@, it represents a partially applied type family
 type k1 ~> k2 = TyFun k1 k2 -> *
+infixr 0 ~> 
 
 -- | The type symbol application family.
 -- To defunctionalize a family @type family X k1 :: k2@, one has to define a @data SymX :: k1 ~> k2@
@@ -47,6 +48,7 @@ type TList tc = XList (TyCon tc)
 deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
 deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
 deriving instance (forall x. Show (tc x)) => Show (TList tc ix)
+
 type instance Sing = SList
 
 -- | The class of singleton kinds. If @k@ is an instance, then @k@ should have an associated singleton.

@@ -121,5 +121,5 @@ vSlice n m k l = lens g' p' where
 (.:=) s a r = modifySTRef r (s .~ a)
 
 -- | A lens viewing a tensor with two dimensions transposed.
-vTranspose :: (Known ix, Known iy, Swapped' ix i j iy) => Nat i -> Nat j -> Lens' (Tensor iy a) (Tensor ix a)
-vTranspose i j = lens (transpose i j) (const $ transpose' i j)
+vTranspose :: (Known ix, Known (Swap i j ix)) => SFin (VLength ix) i -> SFin (VLength ix) j -> Lens' (Tensor2 (Swap i j ix) a) (Tensor2 ix a)
+vTranspose i j = lens (transpose' i j) (const $ transpose i j)
