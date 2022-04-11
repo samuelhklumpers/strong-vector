@@ -25,7 +25,7 @@ import Data.Proxy (Proxy)
 -- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
-    VC ::  a -> Vec n a -> Vec ('S n) a
+    VC :: a -> Vec n a -> Vec ('S n) a
 
 data XVec :: forall n k. (k ~> *) -> Vec n k -> * where
     XN  :: XVec f 'VN
