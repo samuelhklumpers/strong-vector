@@ -4,6 +4,7 @@
 
 -- | The singleton family, function symbol applications, the [] singleton SList and it's generalization XList
 module SingBase where
+import Data.Proxy
 
 
 -- | The singleton family, connecting the underlying types to their singleton type.
@@ -11,7 +12,8 @@ module SingBase where
 --  @Sing N   = Nat@
 --  @Sing B   = Boolean@
 --  @Sing [N] = SList N@
-type family Sing :: k -> *
+type family Sing (x :: k) = (y :: *) | y -> x
+
 
 -- | The datatype representing a domain-codomain pair
 data TyFun :: * -> * -> *
@@ -49,7 +51,7 @@ deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
 deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
 deriving instance (forall x. Show (tc x)) => Show (TList tc ix)
 
-type instance Sing = SList
+type instance Sing x = SList x
 
 -- | The class of singleton kinds. If @k@ is an instance, then @k@ should have an associated singleton.
 class SingKind k where

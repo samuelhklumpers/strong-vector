@@ -33,8 +33,8 @@ data XVec :: forall n k. (k ~> *) -> Vec n k -> * where
 
 type SVec = XVec SingSym
 type TVec tc = XVec (TyCon tc)
-
-type instance Sing = SVec
+ 
+type instance Sing x = SVec x
 
 type family ToVec (xs :: [k]) :: Vec (Length xs) k where
     ToVec '[] = 'VN
