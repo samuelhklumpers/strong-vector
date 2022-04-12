@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 -- | Vectors, basic operations, and construction/extraction functions.
 module VectorsBase where
@@ -20,6 +21,7 @@ import Data.Functor.Rep
 import Naturals
 import SingBase
 import Data.Proxy (Proxy)
+import Data.Void
 
 
 -- | The type for vectors with known size
@@ -242,3 +244,41 @@ enumerate v = zipWith (,) (enumFin $ size v) v
 delete :: Fin ('S n) -> Vec ('S n) a -> Vec n a
 delete FZ (VC _ v)    = v
 delete (FS f) (VC x v) = VC x $ delete f v
+
+
+type family Base (t :: N -> * -> *) :: N -> * -> * -> *
+
+class IxRFunctor f where
+    rmap :: forall a b c (n :: N). (b -> c) -> f n a b -> f n a c 
+
+instance (forall (n :: N) a. Functor (f n a)) => IxRFunctor f where
+    rmap f x = fmap f x
+
+type family Pred (n :: N) :: N where
+    Pred 'Z     = 'Z
+    Pred ('S n) = n
+
+class IxRFunctor (Base t) => Linear t where
+    project :: t n a -> Base t n a (t (Pred n) a) 
+
+data VecF n a b where
+    Nil  :: VecF 'Z a b
+    Cons :: forall n a b. a -> b -> VecF ('S n) a b
+
+instance Functor (VecF n a) where
+    fmap _ Nil = Nil
+    fmap f (Cons a b) = Cons a (f b)
+
+type instance Base Vec = VecF
+
+instance Linear Vec where
+    project VN        = Nil
+    project (VC x xs) = Cons x xs
+
+lcata :: Linear t => (forall n. Base t n a b -> b) -> t m a -> b
+lcata f = f . rmap (lcata f) . project
+
+size' :: Vec n a -> Int
+size' = lcata \case
+    Nil       -> 0
+    Cons _ xs -> 1 + xs
