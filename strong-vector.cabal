@@ -31,6 +31,7 @@ library
       NaturalsFams
       NaturalsFuns
       NaturalsProofs
+      Recursion
       SingBase
       Streams
       TensorBlock
@@ -40,6 +41,7 @@ library
       Vectors
       VectorsBase
       VectorsLens
+      VectorsSing
       VectorsSparse
   other-modules:
       Paths_strong_vector
@@ -71,7 +73,6 @@ library
     , containers
     , distributive
     , lens
-    , recursion-schemes
     , reflection
   default-language: Haskell2010
 
@@ -113,7 +114,6 @@ test-suite strong-vector-test
     , hspec-contrib
     , lens
     , quickcheck-classes-base
-    , recursion-schemes
     , reflection
     , strong-vector
   default-language: Haskell2010

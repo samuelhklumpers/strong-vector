@@ -4,15 +4,17 @@
 
 -- | The singleton family, function symbol applications, the [] singleton SList and it's generalization XList
 module SingBase where
-import Data.Proxy
 
 
 -- | The singleton family, connecting the underlying types to their singleton type.
 -- For example
---  @Sing N   = Nat@
---  @Sing B   = Boolean@
---  @Sing [N] = SList N@
+--  @Sing N       = Nat@
+--  @Sing B       = Boolean@
+--  @Sing [N]     = SList N@
+--  @Sing (Fin n) = SFin n@
 type family Sing (x :: k) = (y :: *) | y -> x
+-- ^ As opposed to the @Sing@ family of singletons, our variant is not eta-reduced,
+-- allowing us to define @Fin n@ as a singleton type.
 
 
 -- | The datatype representing a domain-codomain pair
@@ -42,6 +44,7 @@ data XList :: forall k. (k ~> *) -> [k] -> * where
 
 -- | Singleton list type, @SList k@ is the list of singletons associated to the kind @k@
 type SList = XList SingSym
+type instance Sing x = SList x
 
 -- | Specialized version of @XList@ for type constructors
 type TList tc = XList (TyCon tc)
@@ -51,14 +54,12 @@ deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
 deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)
 deriving instance (forall x. Show (tc x)) => Show (TList tc ix)
 
-type instance Sing x = SList x
 
 -- | The class of singleton kinds. If @k@ is an instance, then @k@ should have an associated singleton.
 class SingKind k where
     type Demote k = (r :: *) | r -> k
 
     fromSing :: Sing (a :: k) -> Demote k 
-
 
 instance Eq (XList f '[]) where
     XNil == XNil = True
@@ -76,8 +77,7 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
 
-
--- | This class associates singleton values to type-level values.
+-- | This class associates singleton values to type-level values, allowing for implicit value passing.
 class Known s where
     auto :: Sing s
 

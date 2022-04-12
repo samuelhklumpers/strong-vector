@@ -21,34 +21,13 @@ import Data.Functor.Rep
 import Naturals
 import SingBase
 import Data.Proxy (Proxy)
-import Data.Void
 
+-- * Types
 
 -- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
     VC :: a -> Vec n a -> Vec ('S n) a
-
-data XVec :: forall n k. (k ~> *) -> Vec n k -> * where
-    XN  :: XVec f 'VN
-    XC  :: Apply f x -> XVec f xs -> XVec f ('VC x xs)
-
-type SVec = XVec SingSym
-type TVec tc = XVec (TyCon tc)
- 
-type instance Sing x = SVec x
-
-type family ToVec (xs :: [k]) :: Vec (Length xs) k where
-    ToVec '[] = 'VN
-    ToVec (x ': xs) = 'VC x (ToVec xs)
-
-type family FromVec (xs :: Vec n k) :: [k] where
-    FromVec 'VN        = '[] 
-    FromVec ('VC x xs) = x ': FromVec xs
-
-toXVec :: XList f xs -> XVec f (ToVec xs)
-toXVec XNil         = XN
-toXVec (XCons x xs) = XC x $ toXVec xs
 
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
@@ -167,12 +146,6 @@ unfoldN (NS n) f z = VC a (unfoldN n f s) where
 unfold :: Known n => (s -> (a, s)) -> s -> Vec n a
 unfold = unfoldN auto
 
--- | Dependent vector fold. If @f :: N ~> *@ represents a natural index family and @v :: Vec n a@, then folding @dfold@ applies the folding function @n@ times,
--- resulting in a value of the type @f@ applied to @n@.
-dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
-dfold _ _ VN z = z
-dfold p f (VC a v) z = f (size v) a (dfold p f v z)
-
 -- | @iterateN n f x@ returns a vector of size @n@ of repeated applications of @f@ to @x@
 iterateN :: Nat n -> (a -> a) -> a -> Vec n a
 iterateN NZ     _ _ = VN
@@ -234,8 +207,6 @@ enumFin NZ          = VN
 enumFin (NS NZ)     = VC FZ VN
 enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n)))
 
-
-
 -- | Tuple the elements of a vector with their indices
 enumerate :: Vec n a -> Vec n (Fin n, a)
 enumerate v = zipWith (,) (enumFin $ size v) v
@@ -244,41 +215,3 @@ enumerate v = zipWith (,) (enumFin $ size v) v
 delete :: Fin ('S n) -> Vec ('S n) a -> Vec n a
 delete FZ (VC _ v)    = v
 delete (FS f) (VC x v) = VC x $ delete f v
-
-
-type family Base (t :: N -> * -> *) :: N -> * -> * -> *
-
-class IxRFunctor f where
-    rmap :: forall a b c (n :: N). (b -> c) -> f n a b -> f n a c 
-
-instance (forall (n :: N) a. Functor (f n a)) => IxRFunctor f where
-    rmap f x = fmap f x
-
-type family Pred (n :: N) :: N where
-    Pred 'Z     = 'Z
-    Pred ('S n) = n
-
-class IxRFunctor (Base t) => Linear t where
-    project :: t n a -> Base t n a (t (Pred n) a) 
-
-data VecF n a b where
-    Nil  :: VecF 'Z a b
-    Cons :: forall n a b. a -> b -> VecF ('S n) a b
-
-instance Functor (VecF n a) where
-    fmap _ Nil = Nil
-    fmap f (Cons a b) = Cons a (f b)
-
-type instance Base Vec = VecF
-
-instance Linear Vec where
-    project VN        = Nil
-    project (VC x xs) = Cons x xs
-
-lcata :: Linear t => (forall n. Base t n a b -> b) -> t m a -> b
-lcata f = f . rmap (lcata f) . project
-
-size' :: Vec n a -> Int
-size' = lcata \case
-    Nil       -> 0
-    Cons _ xs -> 1 + xs

@@ -6,68 +6,84 @@ module Streams where
 import SingBase
 import Naturals
 
-data DStream :: (N ~> *) -> N -> * where
-    DNext :: Apply f n -> DStream f ('S n) -> DStream f n
-
-type DStream' f = DStream f N0
-
-instance (Show (Apply f n), Show (Apply f ('S n)), Show (Apply f ('S ('S n)))) => Show (DStream f n) where
-    show (DNext x (DNext y (DNext z _))) = "{" ++ show x ++ "," ++ show y ++ "," ++ show z ++ ",..."
 
 
-type family Id (x :: k) :: k where
-    Id x = x
+-- * Types
 
-type family Const (x :: k1) (y :: k2) :: k1 where
-    Const x _ = x
+-- | The heterogeneous stream type, where the types in the stream are indexed by the @f :: N ~> *@ symbol.
+-- Note that unlike how @XList@ has the @SList@ variant, there is no possible singleton equivalent @SStream@;
+-- If this were a singleton type, then the underlying kind should be
+-- @data Stream a = Next a (Stream a)@,
+-- but all types inhabiting @Stream k@ would be infinite.
+data XStream' :: (N ~> *) -> N -> * where
+    XNext :: Apply f n -> XStream' f ('S n) -> XStream' f n
 
+-- | The heterogeneous stream type, restricted to start counting from 0.
+type XStream f = XStream' f N0
+
+
+-- * Families
+
+-- | @Fib n@ is the @n@th Fibonacci number.
 type family Fib (n :: N) :: N where
     Fib N0          = N1
     Fib N1          = N1
     Fib ('S ('S n)) = Fib n + Fib ('S n)
 
-data IdSym1 :: k ~> k
-type instance Apply IdSym1 x = x
+-- | @RangeFrom n m@ is the list ranging from @n@ to @n + m@ excl.
+type family RangeFrom (n :: N) (m :: N) :: [N] where
+    RangeFrom n 'Z     = '[]
+    RangeFrom n ('S m) = n ': RangeFrom ('S n) m
+
+
+-- * Symbols
 
 data ConstSym1 :: k1 -> k2 ~> k1
 type instance Apply (ConstSym1 x) _ = x
 
-data FibSym1 :: N ~> N
-type instance Apply FibSym1 n = Fib n
+data FibSym1 :: N ~> *
+type instance Apply FibSym1 n = Nat (Fib n)
 
-data FibSym1' :: N ~> *
-type instance Apply FibSym1' n = Nat (Fib n)
 
-ones :: DStream (ConstSym1 Int) n
-ones = DNext 1 ones
+-- * Instances
 
-count :: Nat n -> DStream (TyCon Nat) n
-count n = DNext n (count $ NS n)
+instance (Show (Apply f n), Show (Apply f ('S n)), Show (Apply f ('S ('S n)))) => Show (XStream' f n) where
+    show (XNext x (XNext y (XNext z _))) = "{" ++ show x ++ "," ++ show y ++ "," ++ show z ++ ",..."
 
-count' :: DStream' (TyCon Nat)
-count' = count NZ
 
-sHead :: DStream f n -> Apply f n
-sHead (DNext x _) = x
+-- * Functions
 
-sTail :: DStream f n -> DStream f ('S n)
-sTail (DNext _ xs) = xs
+-- | @shead xs@ returns the head of @xs@
+shead :: XStream' f n -> Apply f n
+shead (XNext x _) = x
 
-fib' :: Nat n -> Nat (Fib n)
-fib' NZ = na1
-fib' (NS NZ) = na1
-fib' (NS (NS n)) = fib' n +| fib' (NS n)
+-- | @stail xs@ returns the tail stream of @xs@
+stail :: XStream' f n -> XStream' f ('S n)
+stail (XNext _ xs) = xs
 
-fib :: Nat n -> DStream FibSym1' n
-fib n = DNext (fib' n) (fib $ NS n)
-
-fib'' :: DStream' FibSym1'
-fib'' = fib NZ
-
-type family EnumSteps (n :: N) (m :: N) :: [N] where
-    EnumSteps n 'Z     = '[]
-    EnumSteps n ('S m) = n ': EnumSteps ('S n) m
-
-stake :: Nat n -> DStream f m -> XList f (EnumSteps m n)
+-- | @stake n xs@ returns the list formed by taking @n@ elements of @xs@
+stake :: Nat n -> XStream' f m -> XList f (RangeFrom m n)
 stake NZ _ = XNil
-stake (NS n) (DNext x xs) = XCons x (stake n xs)
+stake (NS n) (XNext x xs) = XCons x (stake n xs)
+
+-- | @fibonacci n@ is the @n@th Fibonacci @Nat@
+fibonacci :: Nat n -> Nat (Fib n)
+fibonacci NZ = na1
+fibonacci (NS NZ) = na1
+fibonacci (NS (NS n)) = fibonacci n +| fibonacci (NS n)
+
+-- | @inf x@ is the stream of @x@s
+inf :: a -> XStream' (ConstSym1 a) n
+inf x = XNext x (inf x)
+
+-- | @count@ is the @Nat@ stream counting from 0 onwards
+count :: XStream (TyCon Nat)
+count = help NZ where
+    help :: Nat n -> XStream' (TyCon Nat) n
+    help n = XNext n (help $ NS n)
+
+-- | @fib@ is the stream of fibonacci @Nat@s
+fib :: XStream FibSym1
+fib = help NZ where
+    help :: Nat n -> XStream' FibSym1 n
+    help n = XNext (fibonacci n) (help $ NS n)

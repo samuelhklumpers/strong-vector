@@ -8,9 +8,7 @@ import Control.Applicative
 import SingBase
 import Prelude hiding (splitAt, (++), zipWith)
 
-type family NewDim (xs :: [k]) :: [[k]] where
-    NewDim '[]       = '[]
-    NewDim (x ': xs) = '[x] ': NewDim xs
+-- * Types
 
 -- | The datatype of block tensors.
 -- @BZ@ states that a scalar is a 0-dimensional block
@@ -36,10 +34,29 @@ data Block bs a where
 -- <2, 3 | 4 >
 -- -----------
 
--- | Concatenate a vector of blocks into a larger block
-bConcat :: Vec n (Block bs a) -> Block ('[n] ': bs) a
-bConcat v = BS v BL
 
+-- * Families
+
+-- | The list sum family
+type family Sum (ns :: [N]) :: N where
+    Sum '[] = 'Z
+    Sum (n ': ns) = n + Sum ns
+
+-- | @Stacken bs@ described the shape of a block tensor after forgetting its block structure,
+-- it would be equivalent to @FMap Sum@.
+type family Stacken (bs :: [[N]]) :: [N] where
+    Stacken '[] = '[]
+    Stacken (ns ': nss) = Sum ns ': Stacken nss
+
+-- | @NewDim ix@ adds dimensions to all elements of @ix@,
+-- which corresponds to interpreting the shape tensor as that of the trivial block tensor.
+-- It would be equivalent to @FMap '[]@.
+type family NewDim (xs :: [k]) :: [[k]] where
+    NewDim '[]       = '[]
+    NewDim (x ': xs) = '[x] ': NewDim xs
+
+
+-- * Instances
 instance Functor (Block bs) where
     fmap f (BZ a) = BZ (f a)
     fmap _ BL = BL
@@ -48,6 +65,13 @@ instance Functor (Block bs) where
 instance Known bs => Applicative (Block bs) where
     pure x = fullB x auto
     liftA2 = zipWithB
+
+
+-- * Functions
+
+-- | Concatenate a vector of blocks into a larger block
+bConcat :: Vec n (Block bs a) -> Block ('[n] ': bs) a
+bConcat v = BS v BL
 
 -- | @full x n@ returns a block of shape @bs@ of copies of @x@
 fullB :: a -> SList bs -> Block bs a
@@ -66,31 +90,9 @@ tensorBlock :: Tensor ns a -> Block (NewDim ns) a
 tensorBlock (TZ a) = BZ a
 tensorBlock (TC v) = bConcat (fmap tensorBlock v)
 
-type family Sum (ns :: [N]) :: N where
-    Sum '[] = 'Z
-    Sum (n ': ns) = n + Sum ns
-
-type family Stacken (bs :: [[N]]) :: [N] where
-    Stacken '[] = '[]
-    Stacken (ns ': nss) = Sum ns ': Stacken nss
-
 -- | Convert a block tensor to a tensor, forgetting blockiness
 blockTensor :: Block bs a -> Tensor (Stacken bs) a
 blockTensor (BZ a) = TZ a
 blockTensor BL = TC VN
 blockTensor (BS b bs) = case blockTensor bs of
     TC vs -> TC (fmap blockTensor b ++ vs)
-
-{-
-enBlock :: SList bs -> Tensor (Stacken bs) a -> Block bs a
-enBlock XNil (TZ a) = BZ a
-enBlock (XCons XNil _) _ = BL
-enBlock (XCons (XCons n ns) nss) (TC ts) = BS (enBlock nss h) (enBlock (XCons ns nss) ts') where
-    (h, ts') = splitAt n ts
-
-join :: Block bs (Block bs a) -> Block bs a
-join = _ -- use blockTensor and enBlock
-
-instance Known bs => Monad (Block bs) where
-    --
--}
