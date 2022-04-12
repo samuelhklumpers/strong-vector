@@ -49,3 +49,8 @@ toFin (NS n) m = finS \\ know (n +| NS m) $ toFin n m
 prod :: SList ns -> Nat (Prod ns)
 prod XNil = NS NZ
 prod (XCons n ns) = n *| prod ns
+
+-- | The length of a list
+sizeList :: XList f x -> Nat (Length x)
+sizeList XNil              = NZ
+sizeList (XCons _ xs)      = NS (sizeList xs)
