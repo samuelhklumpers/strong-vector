@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Natural numbers, basic operations, conversion functions, and other similar singletons
 module NaturalsBase where
 

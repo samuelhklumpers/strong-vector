@@ -1,7 +1,8 @@
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Recursion schemes for @N@-indexed recursive types
+-- | Recursion schemes for @N@-indexed recursive types.
+-- Implements a heavily modified subset of the functionality of [recursion-schemes](https://hackage.haskell.org/package/recursion-schemes).
 module Recursion where
 
 import Vectors

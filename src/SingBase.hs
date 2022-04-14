@@ -2,7 +2,8 @@
 {-# LANGUAGE QuantifiedConstraints #-}
 
 
--- | The singleton family, function symbol applications, the [] singleton SList and it's generalization XList
+-- | The singleton family, function symbol applications, the [] singleton SList and it's generalization XList.
+-- Partially adapted from [singletons](https://hackage.haskell.org/package/singletons).
 module SingBase where
 
 

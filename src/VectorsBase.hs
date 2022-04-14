@@ -3,6 +3,7 @@
 {-# LANGUAGE QuantifiedConstraints #-}
 
 -- | Vectors, basic operations, and construction/extraction functions.
+-- Largely inspired by [vector-sized](https://hackage.haskell.org/package/vector-sized).
 module VectorsBase where
 
 import Prelude hiding (splitAt, (++), zipWith, take, drop )
@@ -20,7 +21,6 @@ import Data.Functor.Rep
 
 import Naturals
 import SingBase
-import Data.Proxy (Proxy)
 
 -- * Types
 
