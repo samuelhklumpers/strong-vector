@@ -1,7 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 -- | Vectors, basic operations, and construction/extraction functions.
+-- Largely inspired by [vector-sized](https://hackage.haskell.org/package/vector-sized).
 module VectorsBase where
 
 import Prelude hiding (splitAt, (++), zipWith, take, drop )
@@ -19,13 +21,13 @@ import Data.Functor.Rep
 
 import Naturals
 import SingBase
-import Data.Proxy (Proxy)
 
+-- * Types
 
 -- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
-    VC ::  a -> Vec n a -> Vec ('S n) a
+    VC :: a -> Vec n a -> Vec ('S n) a
 
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
@@ -144,12 +146,6 @@ unfoldN (NS n) f z = VC a (unfoldN n f s) where
 unfold :: Known n => (s -> (a, s)) -> s -> Vec n a
 unfold = unfoldN auto
 
--- | Dependent vector fold. If @f :: N ~> *@ represents a natural index family and @v :: Vec n a@, then folding @dfold@ applies the folding function @n@ times,
--- resulting in a value of the type @f@ applied to @n@.
-dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
-dfold _ _ VN z = z
-dfold p f (VC a v) z = f (size v) a (dfold p f v z)
-
 -- | @iterateN n f x@ returns a vector of size @n@ of repeated applications of @f@ to @x@
 iterateN :: Nat n -> (a -> a) -> a -> Vec n a
 iterateN NZ     _ _ = VN
@@ -210,8 +206,6 @@ enumFin :: Nat n -> Vec n (Fin n)
 enumFin NZ          = VN
 enumFin (NS NZ)     = VC FZ VN
 enumFin (NS (NS n)) = VC (toFZ $ NS n) (fmap FS (enumFin (NS n)))
-
-
 
 -- | Tuple the elements of a vector with their indices
 enumerate :: Vec n a -> Vec n (Fin n, a)

@@ -1,7 +1,6 @@
 -- | Natural number arithmetic
 module NaturalsFuns where
 
-import Data.Constraint
 import Data.Void
 
 import NaturalsBase

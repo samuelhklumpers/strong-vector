@@ -121,12 +121,13 @@ divide m nm p = case nm <| m of
     No _ ->  unsafeCoerce $ NS $ unsafeCoerce $ divide m (unsafeCoerce $ nm -| m) p
 
 
--- | If we have a singleton @Nat n@, then @n@ is constructible
+-- | If we have a singleton @Nat n@, then @n@ is constructible.
+-- NB: In most cases using a helper function which constructs the necessary values is preferable to relying on @Dict@ passing.
 know :: Nat n -> Dict (Known n)
 know NZ     = Dict              -- Known 'Z
 know (NS n) = Dict \\ know n    -- Apply Known n => Known ('S n) to Known n
 
--- | If @'S n@ is constructible, then @n@ is constructible
+-- | If @'S n@ is constructible, then @n@ is constructible.
 lower :: Dict (Known ('S n)) -> Dict (Known n)
 lower Dict = h auto where
     -- first construct @s :: Nat ('S n)@,

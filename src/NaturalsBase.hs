@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Natural numbers, basic operations, conversion functions, and other similar singletons
 module NaturalsBase where
 
@@ -26,6 +27,10 @@ data Fin n where
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
 
+data SFin :: forall n. N -> Fin n -> * where
+    SFZ :: SFin ('S n) 'FZ
+    SFS :: SFin ('S n) i -> SFin ('S ('S n)) ('FS i)
+
 deriving instance Ord (Fin n) 
 
 -- | The singleton type for boolean.
@@ -41,14 +46,28 @@ instance Known 'Z where
 instance Known n => Known ('S n) where
     auto = NS auto
 
+instance Known 'FZ where
+    auto = SFZ
+
+instance Known i => Known ('FS i) where
+    auto = SFS auto
+
 instance Known 'True where
     auto = BT
 
 instance Known 'False where
     auto = BF
 
-type instance Sing = Nat
-type instance Sing = Boolean
+type instance Sing x = Nat x
+type instance Sing x = Boolean x
+type instance Sing (i :: Fin n) = SFin n i
+
+
+instance SingKind (Fin n) where
+    type Demote (Fin n) = Fin n
+
+    fromSing SFZ = FZ
+    fromSing (SFS i) = FS $ fromSing i
 
 instance SingKind Bool where
     type Demote Bool = Bool
