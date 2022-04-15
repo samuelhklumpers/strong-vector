@@ -6,8 +6,6 @@ import Vectors
 import Tensors
 import SingBase
 
-
-import Test.Hspec
 import Test.HUnit
 
 hello :: STRING ( 'CH ': 'CE ': 'CL ': 'CL ': 'CO ': '[])
@@ -16,14 +14,8 @@ hello = XCons SCH $ XCons SCE $ XCons SCL $ XCons SCL $ XCons SCO XNil
 ca :: STRING ( 'CC ': 'CA ': '[])
 ca = XCons SCC $ XCons SCA XNil
 
-bb :: STRING ( 'CB ': 'CB ': '[])
-bb = XCons SCB $ XCons SCB XNil
-
 bbb :: STRING ( 'CB ': 'CB ': 'CB ': '[])
 bbb = XCons SCB $ XCons SCB $ XCons SCB XNil
-
-cc :: STRING ( 'CC ': 'CC ': '[])
-cc = XCons SCC $ XCons SCC XNil
 
 newCol :: Tensor ( N2 ': '[]) String
 newCol = TC (VC (TZ "col32") (VC (TZ "col33") VN))
@@ -37,34 +29,42 @@ newRow2 = VC "b" (VC "2" VN)
 newRow3 :: Vec N3 String
 newRow3 = VC "col31" (VC "c" (VC "1" VN))
 
+addR :: Table
+  '[Header '[ 'CB, 'CB, 'CB] ('S 'Z), Header '[ 'CC, 'CA] 'Z] ('S 'Z)
 addR  = insertRow newRow addC2
+addR2 :: Table
+  '[Header '[ 'CB, 'CB, 'CB] ('S 'Z), Header '[ 'CC, 'CA] 'Z]
+  ('S ('S 'Z))
 addR2 = insertRow newRow2 addR
-addR3 = insertRow newRow3 addC3
 
+addC :: Table '[Header '[ 'CC, 'CA] 'Z] 'Z
 addC  = insertColumn ca (TC VN) emptyTable
+
+addC2 :: Table '[Header '[ 'CB, 'CB, 'CB] ('S 'Z), Header '[ 'CC, 'CA] 'Z] 'Z
 addC2 = insertColumn bbb (TC VN) addC
-addC3 = insertColumn hello newCol addR2
 
 -- A 3 by 2 table
+table32 :: Table
+  '[Header '[ 'CH, 'CE, 'CL, 'CL, 'CO] ('S ('S 'Z)),
+    Header '[ 'CB, 'CB, 'CB] ('S 'Z), Header '[ 'CC, 'CA] 'Z]
+  N2
 table32 = insertColumn hello newCol addR2
 
+table33 :: Table
+  '[Header '[ 'CH, 'CE, 'CL, 'CL, 'CO] ('S ('S 'Z)),
+    Header '[ 'CB, 'CB, 'CB] ('S 'Z), Header '[ 'CC, 'CA] 'Z]
+  ('S N2)
 table33 = insertRow newRow3 table32
 
-table21 = Table headers rows
-  where 
-        headers = XCons header1 $ XCons header2 XNil
-        rows    = TC (VC (TC (VC (TZ "a") VN)) (VC (TC (VC (TZ "c")  VN)) VN))
-
-header1 :: Header '[ 'CB, 'CB, 'CB] ('S 'Z)
-header1 = Header (NS NZ)
-header2 :: Header '[ 'CC, 'CA] 'Z
-header2 = Header NZ
-
+col3 :: Tensor '[ 'S ('S 'Z)] [Char]
 col3 = TC (VC (TZ "col32")  (VC (TZ "col33")  VN ))
+col1 :: Tensor '[ 'S ('S ('S 'Z))] [Char]
 col1 = TC (VC (TZ "1")  (VC (TZ "2") (VC (TZ "3") VN )))
 
+col11 :: Tensor '[ 'S 'Z] [Char]
 col11 = TC (VC (TZ "a") VN )
 
+dbTests :: Test
 dbTests = TestLabel "Database" $ TestList [
         TestLabel "Select" $ TestList
         [

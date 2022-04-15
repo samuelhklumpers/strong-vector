@@ -3,13 +3,10 @@
 module VectorsSparse where
 
 import Prelude hiding (zipWith)
-import Data.Map ( empty, fromList, lookup, toDescList, Map, toAscList, insert, union, mapWithKey, difference, findWithDefault)
+import Data.Map ( empty, fromList, Map, insert, union, mapWithKey, difference, findWithDefault)
 import qualified Data.Map as Map
 import VectorsBase ( enumFin, generateN, Vec(..) )
 import Naturals
-import NaturalsBase
-import Data.Maybe
-import Unsafe.Coerce (unsafeCoerce)
 import Control.Applicative (liftA2)
 
 import SingBase

@@ -136,13 +136,13 @@ emptyTable = Table XNil (enshape VN (XCons NZ $ XCons NZ XNil))
 -- | Select a column from a table by giving the index
 selectByIndex :: (((n + m) - m) ~ n, Length c ~ 'S (n + m)) =>
   Nat m -> Table c r -> Tensor '[r] String
-selectByIndex x (Table _ y) = getCol y $ toFin ((-|) (sizeT y) x) x
+selectByIndex n (Table _ r) = getCol r $ toFin ((-|) (sizeT r) n) n
   where getCol :: Tensor (n ': r ': '[]) String -> Fin n -> Tensor (r ': '[]) String
-        getCol ((TC (VC v _)))  FZ            = v
-        getCol ((TC (VC _ (VC v vs)))) (FS s) = getCol (TC (VC v vs)) s
+        getCol ((TC (VC c _)))  FZ            = c
+        getCol ((TC (VC _ (VC c cs)))) (FS s) = getCol (TC (VC c cs)) s
         sizeT :: Tensor (S n ': r ': '[]) a -> Nat n
         sizeT ((TC (VC _ VN)))        = NZ
-        sizeT ((TC (VC _ (VC y ys)))) = NS (sizeT (TC (VC y ys)))
+        sizeT ((TC (VC _ (VC t ts)))) = NS (sizeT (TC (VC t ts)))
 
 
 -- | Select a column from a table by giving the name of the column
