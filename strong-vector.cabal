@@ -82,6 +82,7 @@ test-suite strong-vector-test
   main-is: Spec.hs
   other-modules:
       Paths_strong_vector
+      DatabaseTest
   hs-source-dirs:
       test
   default-extensions:

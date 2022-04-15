@@ -3,14 +3,14 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Database where
--- module Database (insertRow, insertColumn, selectFromTable, selectByIndex ,selectTest) where
 import Vectors hiding ((++))
 import NaturalsBase
 import SingBase
 import Tensors
-import Naturals (Length, toFin, sizeList, (-|))
+import Naturals (toFin, sizeList, (-|))
 import Data.Type.Bool
 import qualified Data.Type.Equality as T
 import NaturalsFams
@@ -127,7 +127,6 @@ insertColumn :: STRING x -> Tensor (r ': '[]) String -> Table c r ->  Table (Hea
 insertColumn _ ts (Table h (TC xs)) = Table newHeaders (TC (VC ts xs))
     where newHeaders          = XCons (Header (sizeList h)) h
 
-
 sizeT :: Tensor (S n ': r ': '[]) a -> Nat n
 sizeT ((TC (VC _ VN)))        = NZ
 sizeT ((TC (VC _ (VC y ys)))) = NS (sizeT (TC (VC y ys)))
@@ -150,45 +149,3 @@ selectFromTable :: (Member s c (Nat (Lookup s c)) (Head s c),
  ((n + Lookup s c) - Lookup s c) ~ n) =>
   STRING s -> Table c r -> Tensor '[r] String
 selectFromTable colName t@(Table c _) = selectByIndex (select colName c) t
-
--- TESTING
-selectTest = selectFromTable helloString addR3
-
--- Add Row
-newCol :: Tensor ( N2 ': '[]) String
-newCol = TC (VC (TZ "col31") (VC (TZ "col32") VN))
-
-newRow :: Vec N2 String
-newRow = VC "a" (VC "12" VN)
-
-newRow2 :: Vec N2 String
-newRow2 = VC "b" (VC "4" VN)
-
-newRow3 :: Vec N3 String
-newRow3 = VC "col33" (VC "c" (VC "7" VN))
-
-addR  = insertRow newRow addC2
-addR2 = insertRow newRow2 addR
-addR3 = insertRow newRow3 addC3
-
-addC  = insertColumn ca (TC VN) emptyTable
-addC2 = insertColumn bbb (TC VN) addC
-
-addC3 = insertColumn helloString newCol addR2
-
-ca :: STRING ( 'CC ': 'CA ': '[])
-ca = XCons SCC $ XCons SCA XNil
-
-
-helloString :: STRING ( 'CH ': 'CE ': 'CL ': 'CL ': 'CO ': '[])
-helloString = XCons SCH $ XCons SCE $ XCons SCL $ XCons SCL $ XCons SCO XNil
-
-
-bb :: STRING ( 'CB ': 'CB ': '[])
-bb = XCons SCB $ XCons SCB XNil
-
-bbb :: STRING ( 'CB ': 'CB ': 'CB ': '[])
-bbb = XCons SCB $ XCons SCB $ XCons SCB XNil
-
-cc :: STRING ( 'CC ': 'CC ': '[])
-cc = XCons SCC $ XCons SCC XNil

@@ -21,6 +21,7 @@ import Data.STRef
 import Test.Hspec.QuickCheck
 import TensorsBase
 import TensorsSparse
+import DatabaseTest (dbTests)
 
 
 instance Arbitrary (Vec 'Z a) where
@@ -192,6 +193,7 @@ doubleFoldRes = VC 2 $ VC 2 $ VC 3 $ VC 3 $ VC 1 $ VC 1 $ VC 3 $ VC 3 VN
 
 unitTests :: Test
 unitTests = test [
+        dbTests,
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,

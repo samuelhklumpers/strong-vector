@@ -75,7 +75,7 @@ deriving instance (Eq (Apply f x), Eq (XList f xs)) => Eq (XList f (x ': xs))
 instance Show (XList f '[]) where
     show XNil = "XNil"
 
--- deriving instance (Show (Apply f x), Show (XList f xs)) => Show (XList f (x ': xs))
+deriving instance (Show (Apply f x), Show (XList f xs)) => Show (XList f (x ': xs))
 
 -- | The element containment type family for lists
 type family Elem (x :: k) (xs :: [k]) :: Bool where
