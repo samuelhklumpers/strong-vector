@@ -11,9 +11,9 @@ import NaturalsBase
 import SingBase
 import Tensors
 import Naturals (toFin, sizeList, (-|))
+import NaturalsFams
 import Data.Type.Bool
 import qualified Data.Type.Equality as T
-import NaturalsFams
 
 
 data C = CA | CB | CC | CD | CE | CF | CG 
@@ -113,23 +113,21 @@ instance Member s (Header s t ': tail) (Nat t) 'True where
 instance Member s tail t (Head s tail) => Member s (Header s' t' ': tail) t 'False where
   select' string (XCons _ xs) = select' @s @tail @t @(Head s tail) string xs
 
+-- | Insert a row into a table
 insertRow :: Vec (Length c) String -> Table c r ->  Table c ('S r)
 insertRow ss (Table h (TC xs)) = Table h (TC (fmap (uncurry addToFront) (merge ss xs)))
   where merge :: Vec n String -> Vec n (Tensor ix String) -> Vec n (String, Tensor ix String)
         merge VN VN               = VN
         merge (VC v vs) (VC y ys) = VC (v,y) (merge vs ys)
+        addToFront :: a -> Tensor (m ': '[]) a -> Tensor ('S m ': '[]) a
+        addToFront s (TC VN)        = TC (VC (TZ s) VN)
+        addToFront s (TC (VC t ts)) = TC (VC (TZ s) (VC t ts))
 
-addToFront :: a -> Tensor (m ': '[]) a -> Tensor ('S m ': '[]) a
-addToFront s (TC VN)        = TC (VC (TZ s) VN)
-addToFront s (TC (VC t ts)) = TC (VC (TZ s) (VC t ts))
-
+-- | Insert a new column into a table. 
+-- Given the name of the header and the values of all rows in that column
 insertColumn :: STRING x -> Tensor (r ': '[]) String -> Table c r ->  Table (Header x (Length c) ': c) r
 insertColumn _ ts (Table h (TC xs)) = Table newHeaders (TC (VC ts xs))
     where newHeaders          = XCons (Header (sizeList h)) h
-
-sizeT :: Tensor (S n ': r ': '[]) a -> Nat n
-sizeT ((TC (VC _ VN)))        = NZ
-sizeT ((TC (VC _ (VC y ys)))) = NS (sizeT (TC (VC y ys)))
 
 -- | Creates an empty table
 emptyTable :: Table '[] 'Z
@@ -142,6 +140,10 @@ selectByIndex x (Table _ y) = getCol y $ toFin ((-|) (sizeT y) x) x
   where getCol :: Tensor (n ': r ': '[]) String -> Fin n -> Tensor (r ': '[]) String
         getCol ((TC (VC v _)))  FZ            = v
         getCol ((TC (VC _ (VC v vs)))) (FS s) = getCol (TC (VC v vs)) s
+        sizeT :: Tensor (S n ': r ': '[]) a -> Nat n
+        sizeT ((TC (VC _ VN)))        = NZ
+        sizeT ((TC (VC _ (VC y ys)))) = NS (sizeT (TC (VC y ys)))
+
 
 -- | Select a column from a table by giving the name of the column
 selectFromTable :: (Member s c (Nat (Lookup s c)) (Head s c),
