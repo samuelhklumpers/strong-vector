@@ -244,14 +244,14 @@ unitTests = test [
 --     sa = toSparseT x a'
 --     sb = toSparseT y b'
 
-fromToSparseIsId :: Nat n -> SpVec n Int -> Bool
+fromToSparseIsId :: Known n => Nat n -> SpVec n Int -> Bool
 fromToSparseIsId _ spVec@(SpVec sV d) = (toSparse sV . fromSparse) spVec == spVec
 
 toFromSparseIsId :: (Known n) => Nat n -> Int -> Vec n Int -> Bool
 toFromSparseIsId _ sV vec = (fromSparse . toSparse sV) vec == vec
 
-sparsifyIsSparsest :: SpVec n Int -> Bool
-sparsifyIsSparsest spVec = sV `notElem` elems d
+sparsifyIsSparsest :: Nat n -> SpVec n Int -> Bool
+sparsifyIsSparsest _ spVec = sV `notElem` elems d
     where (SpVec sV d) = sparsify spVec
 
 sparsifyRemainsSameVec :: Known n => Nat n -> SpVec n Int -> Bool
@@ -276,10 +276,10 @@ main = do
 
         describe "Sparse" $
             -- prop "sparseMul is matMul" sparseMatMulTest
-            prop "from and back to sparse is id" fromToSparseIsId *>
-            prop "to and back from sparse is id" toFromSparseIsId *>
-            prop "sparsify is sparsest possible" sparsifyIsSparsest *>
-            prop "sparsify does not change vector it represents" sparsifyRemainsSameVec
+            prop "from and back to sparse is id" (fromToSparseIsId na5) *>
+            prop "to and back from sparse is id" (toFromSparseIsId na5) *>
+            prop "sparsify is sparsest possible" (sparsifyIsSparsest na5) *>
+            prop "sparsify does not change vector it represents" (sparsifyRemainsSameVec na5)
 
 
 -- demos
