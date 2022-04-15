@@ -57,11 +57,9 @@ instance Arbitrary (Nat 'Z) where
 instance Arbitrary (Nat n) => Arbitrary (Nat ('S n)) where
     arbitrary = NS <$> arbitrary
 
-instance Arbitrary (Fin ('S 'Z)) where
-    arbitrary = undefined
-
-instance Arbitrary (Fin ('S n)) => Arbitrary (Fin ('S ('S n))) where
-    arbitrary = undefined
+instance (Known n) => Arbitrary (Fin n) where
+    arbitrary = do
+        Test.QuickCheck.elements (Vectors.toList $ enumFin auto)
 
 type Vec4 = Vec N4
 
@@ -234,7 +232,7 @@ sparseMatMulTest x y z z' a b = matMul a' b' == fromSparseT (matMult sb sa) wher
 -}
 
 fromToSparseIsId :: Known n => Nat n -> SpVec n Int -> Bool
-fromToSparseIsId _ spVec@(SpVec sV d) = (toSparse sV . fromSparse) spVec == spVec
+fromToSparseIsId _ spVec@(SpVec sV d) = (toSparse sV . fromSparse) spVec == sparsify spVec
 
 toFromSparseIsId :: (Known n) => Nat n -> Int -> Vec n Int -> Bool
 toFromSparseIsId _ sV vec = (fromSparse . toSparse sV) vec == vec
