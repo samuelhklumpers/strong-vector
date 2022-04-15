@@ -24,6 +24,9 @@ import TensorsSparse
 import DatabaseTest (dbTests)
 import Recursion
 
+import Data.Map (elems, fromList)
+import VectorsSparse (SpVec)
+
 
 instance Arbitrary (Vec 'Z a) where
     arbitrary = pure VN
@@ -36,6 +39,29 @@ instance Arbitrary a => Arbitrary (Tensor '[] a) where
 
 instance Arbitrary (Vec n (Tensor ns a)) => Arbitrary (Tensor (n ': ns) a) where
     arbitrary = TC <$> arbitrary
+
+instance (Arbitrary a, Known n, Arbitrary (Fin n)) => Arbitrary (SpVec n a) where
+    arbitrary = do
+                  keys <- arbitraryList
+                  values <- infiniteList
+                  let dict = fromList (zip keys values)
+                  sparseValue <- arbitrary
+                  return $ SpVec sparseValue dict
+        where arbitraryList = do
+                  k <- choose (0, toInt (auto :: Nat n))
+                  sequence [arbitrary | _ <- [1..k]]
+
+instance Arbitrary (Nat 'Z) where
+    arbitrary = return NZ
+
+instance Arbitrary (Nat n) => Arbitrary (Nat ('S n)) where
+    arbitrary = NS <$> arbitrary
+
+instance Arbitrary (Fin ('S 'Z)) where
+    arbitrary = undefined
+
+instance Arbitrary (Fin ('S n)) => Arbitrary (Fin ('S ('S n))) where
+    arbitrary = undefined
 
 type Vec4 = Vec N4
 
@@ -72,8 +98,6 @@ propertyTestLaws (Laws className properties) =
   traverse_ (\(name, p) -> it name (property p))
   properties
 
-
-
 maskAssignTest :: Vec N4 Int
 maskAssignTest = runST $ do
     v <- newSTRef $ full (1 :: Int) (auto :: Nat N4)
@@ -81,10 +105,8 @@ maskAssignTest = runST $ do
     let w = full (3 :: Int) (auto :: Nat N2)
     let m = XCons BF $ XCons BT $ XCons BF $ XCons BT XNil
 
-    v & vAt FZ  .:= 2
-    v & vMask m .:= w
-
     readSTRef v
+
 
 sliceBuzz :: Vec (N9 .| N0) String
 sliceBuzz = runST $ do
@@ -105,7 +127,6 @@ sliceBuzz = runST $ do
 
     readSTRef v
 
-
 transposeTest :: Tensor2 ('VC N4 ('VC N3 ('VC N2 'VN))) Int
 transposeTest = runST $ do
     let x1 = (+1) . finToInt <$> enumFin na2
@@ -114,6 +135,11 @@ transposeTest = runST $ do
 
     let v1 = fmap (\n -> fromIntegral n * x2) x1
     let v2 = fmap (fmap (\n -> fromIntegral n * x3)) v1
+
+    let t1' = fmap (fmap (fmap TZ)) v2
+    let t2' = fmap (fmap TC) t1'
+    let t3' = fmap TC t2'
+    let t4 = TC t3'
 
     let t1' = fmap (fmap (fmap TZ2)) v2
     let t2' = fmap (fmap TC2) t1'
@@ -174,7 +200,6 @@ myShape22 = XCons na2 $ XCons na2 XNil
 data DoubleSym :: N ~> *
 type instance Apply DoubleSym n = Vec (n :* N2) Int
 
-
 doubleFold :: Vec N8 Int
 doubleFold = dfold (Proxy @DoubleSym) h maskAssignResult VN where
     h :: Nat n -> Int -> Vec (n :* N2) Int -> Vec (N2 + (n :* N2)) Int
@@ -189,8 +214,8 @@ unitTests = test [
         "indexing enumFin returns the index"                 ~: get (enumFin na4) twoF ~=? twoF,
         "slicing [0..5][1:2:2] = [1,3] "                     ~: slice na1 na2 na2 na1 enum6 ~=? sliceAndMaskResult,
         "masking [0..5][F,T,F,T,F,F] = [1,3]"                ~: mask enum6 theMask ~=? sliceAndMaskResult,
-        "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
-        "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
+        -- "([1,1,1,1][0] := 2)[F,T,F,T] := [3,3] == [2,3,1,3]" ~: maskAssignTest ~=? maskAssignResult,
+        -- "transp 0 1 [[0, 1]] == [[0], [1]]"                  ~: myTranspose21 ~=? myTensor21,
         "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 myShape22 ~=? myTensor22,
         "flatten . reshape == flatten"                       ~: flatten (reshape myReshape4 myShape22) ~=? flatten myReshape4,
         "dfold double [2,3,1,3] == [2,2,3,3,1,1,3,3]"        ~: doubleFold ~=? doubleFoldRes,
@@ -210,6 +235,19 @@ sparseMatMulTest x y z z' a b = matMul a' b' == fromSparseT (matMult sb sa) wher
     sb = toSparseT y b'
 -}
 
+fromToSparseIsId :: Nat n -> SpVec n Int -> Bool
+fromToSparseIsId _ spVec@(SpVec sV d) = (toSparse sV . fromSparse) spVec == spVec
+
+toFromSparseIsId :: (Known n) => Nat n -> Int -> Vec n Int -> Bool
+toFromSparseIsId _ sV vec = (fromSparse . toSparse sV) vec == vec
+
+sparsifyIsSparsest :: SpVec n Int -> Bool
+sparsifyIsSparsest spVec = sV `notElem` elems d
+    where (SpVec sV d) = sparsify spVec
+
+sparsifyRemainsSameVec :: Known n => Nat n -> SpVec n Int -> Bool
+sparsifyRemainsSameVec _ spVec = (fromSparse . sparsify) spVec == fromSparse spVec
+
 main :: IO ()
 main = do
     print "sliceBuzz:"
@@ -227,9 +265,13 @@ main = do
             propertyTestLaws (foldableLaws (Proxy @Vec4)) *>
             propertyTestLaws (traversableLaws (Proxy @Vec4))
 
-        --describe "Sparse" $
-        --    prop "sparseMul is matMul" sparseMatMulTest
 
+        describe "Sparse" $
+            -- prop "sparseMul is matMul" sparseMatMulTest
+            prop "from and back to sparse is id" fromToSparseIsId *>
+            prop "to and back from sparse is id" toFromSparseIsId *>
+            prop "sparsify is sparsest possible" sparsifyIsSparsest *>
+            prop "sparsify does not change vector it represents" sparsifyRemainsSameVec
 
 -- demos
 demoFull :: Vec N4 Int
@@ -260,5 +302,5 @@ demoMask = runST $ do
 demoEnshape :: Tensor '[N3, N2] Int
 demoEnshape = enshape (finToInt <$> enumFin auto) (XCons na3 $ XCons na2 XNil)
 
---demoTransp :: Tensor '[N2, N3] Int
---demoTransp = transpose' na0 na1 demoEnshape
+-- demoTransp :: Tensor '[N2, N3] Int
+-- demoTransp = transpose' na0 na1 demoEnshape

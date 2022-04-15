@@ -17,6 +17,11 @@ import SingBase
 -- saved in a dictionary.
 data SpVec n a = SpVec a (Map (Fin n) a) deriving (Show)
 
+instance (Eq a) => (Eq (SpVec n a)) where
+    s1 == s2 = x1 == x2 && d1 == d2
+        where (SpVec x1 d1) = sparsify s1
+              (SpVec x2 d2) = sparsify s2
+
 -- | Return the value at index n if it exists. Otherwise return the default sparse value.
 getS :: SpVec n a -> Fin n -> a
 getS (SpVec sV m) n = findWithDefault sV n m
