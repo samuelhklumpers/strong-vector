@@ -96,9 +96,9 @@ NZ <| (NS _)     = Yes Refl
 (NS n) <| (NS m) = n <| m
 
 -- | Proof that if @n + m@ and @n@ are known, then @m@ is too.
-splitPlus :: forall n m. Dict (KnownNat (n + m)) -> Dict (KnownNat n) -> Dict (KnownNat m)
-splitPlus Dict Dict = h nat where
-    h :: Nat n -> Dict (KnownNat m)
+splitPlus :: forall n m. Dict (Known (n + m)) -> Dict (Known n) -> Dict (Known m)
+splitPlus Dict Dict = h auto where
+    h :: Nat n -> Dict (Known m)
     h NZ = Dict
     h (NS n) = splitPlus (lower Dict) (know n)
 
@@ -119,4 +119,27 @@ divide :: forall n m. Nat m -> Nat (n :* m) -> Neq m 'Z -> Nat n
 divide m nm p = case nm <| m of
     Yes _ -> unsafeCoerce NZ
     No _ ->  unsafeCoerce $ NS $ unsafeCoerce $ divide m (unsafeCoerce $ nm -| m) p
+
+
+-- | If we have a singleton @Nat n@, then @n@ is constructible.
+-- NB: In most cases using a helper function which constructs the necessary values is preferable to relying on @Dict@ passing.
+know :: Nat n -> Dict (Known n)
+know NZ     = Dict              -- Known 'Z
+know (NS n) = Dict \\ know n    -- Apply Known n => Known ('S n) to Known n
+
+-- | If @'S n@ is constructible, then @n@ is constructible.
+lower :: Dict (Known ('S n)) -> Dict (Known n)
+lower Dict = h auto where
+    -- first construct @s :: Nat ('S n)@,
+    -- then destruct it to get @t :: Nat n@,
+    -- which is sufficient to prove @Known n@.
+    h :: Nat ('S n) -> Dict (Known n)
+    h (NS n) = know n
+-- we can use lower as follows
+-- x \\ lower (Dict @(Known n))
+-- to promote some x :: Known m => a with @n ~ 'S m@
+-- to Known n => a
+
+-- note that we use type applications here, like @(Known n)
+-- in this case, this is syntactic sugar over writing @Dict :: Dict (Known n)@
 

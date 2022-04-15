@@ -32,11 +32,18 @@ library
       NaturalsFams
       NaturalsFuns
       NaturalsProofs
+      Recursion
       SingBase
+      Streams
+      TensorBlock
       Tensors
+      TensorsBase
+      TensorsSparse
       Vectors
       VectorsBase
       VectorsLens
+      VectorsSing
+      VectorsSparse
   other-modules:
       Paths_strong_vector
   hs-source-dirs:

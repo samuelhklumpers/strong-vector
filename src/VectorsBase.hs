@@ -1,7 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 -- | Vectors, basic operations, and construction/extraction functions.
+-- Largely inspired by [vector-sized](https://hackage.haskell.org/package/vector-sized).
 module VectorsBase where
 
 import Prelude hiding (splitAt, (++), zipWith, take, drop )
@@ -19,13 +21,13 @@ import Data.Functor.Rep
 
 import Naturals
 import SingBase
-import Data.Proxy (Proxy)
 
+-- * Types
 
 -- | The type for vectors with known size
 data Vec n a where
     VN :: Vec 'Z a
-    VC ::  a -> Vec n a -> Vec ('S n) a
+    VC :: a -> Vec n a -> Vec ('S n) a
 
 instance Show a => Show (Vec n a) where
     show v = "<" P.++ intercalate "," (map show $ toList v) P.++ ">"
@@ -40,12 +42,12 @@ instance Functor (Vec n) where
 
 -- | Note that this instance is forced to use @full@ for @pure@,
 -- unlike unsized vectors or lists which use the singleton @pure x = [x]@.
-instance KnownNat n => Applicative (Vec n) where
-    pure x = full x nat
+instance Known n => Applicative (Vec n) where
+    pure x = full x auto
 
     liftA2 = zipWith
 
-instance KnownNat n => Monad (Vec n) where
+instance Known n => Monad (Vec n) where
     return = pure
 
     v >>= f = diag . fmap f $ v
@@ -54,28 +56,28 @@ instance Foldable (Vec n) where
   foldMap _ VN = mempty
   foldMap f (VC x v) = f x <> foldMap f v
 
-instance KnownNat n => Traversable (Vec n) where
+instance Known n => Traversable (Vec n) where
   sequenceA VN       = pure VN
-  sequenceA (VC x v) = VC <$> x <*> (sequenceA v \\ lower (Dict @(KnownNat n)))
+  sequenceA (VC x v) = VC <$> x <*> (sequenceA v \\ lower (Dict @(Known n)))
 
 -- | Note that only non-empty vectors are comonads due to @extract@
 instance Comonad (Vec ('S n)) where
     extract (VC x _) = x
     duplicate = square
 
-instance KnownNat n => Distributive (Vec n) where
+instance Known n => Distributive (Vec n) where
     distribute = distributeRep
     -- this gives us nice(r) transposes I think
     -- or at least we can now transpose through [] or so
 
 -- | A vector of size @n@ with elements of type @a@ is isomorphic to a function from a type with @n@ values into @a@.
-instance KnownNat n => Representable (Vec n) where
+instance Known n => Representable (Vec n) where
     type Rep (Vec n) = Fin n
 
     tabulate = generate
     index = get
 
-instance (KnownNat n, Num a) => Num (Vec n a) where
+instance (Known n, Num a) => Num (Vec n a) where
     (+) = liftA2 (+) -- this is numpy
     (*) = liftA2 (*)
 
@@ -128,12 +130,11 @@ concatenate (VC v vs) = v ++ concatenate vs
 
 -- | Generate a vector by applying a function to a range of indices
 generateN :: Nat n -> (Fin n -> a) -> Vec n a
-generateN NZ _     = VN
-generateN (NS n) f = VC (f FZ) (generateN n (f . finS \\ know n))
+generateN n f = f <$> enumFin n
 
 -- | Generate a vector by applying a function to a range of indices, inferring the size from the type
-generate :: KnownNat n => (Fin n -> a) -> Vec n a
-generate = generateN nat
+generate :: Known n => (Fin n -> a) -> Vec n a
+generate = generateN auto
 
 -- | Build a vector by repeatedly applying a function to a seed
 unfoldN :: Nat n -> (s -> (a, s)) -> s -> Vec n a
@@ -142,14 +143,8 @@ unfoldN (NS n) f z = VC a (unfoldN n f s) where
     (a, s) = f z
 
 -- | Build a vector by repeatedly applying a function to a seed, inferring the size from the type
-unfold :: KnownNat n => (s -> (a, s)) -> s -> Vec n a
-unfold = unfoldN nat
-
--- | Dependent vector fold. If @f :: N ~> *@ represents a natural index family and @v :: Vec n a@, then folding @dfold@ applies the folding function @n@ times,
--- resulting in a value of the type @f@ applied to @n@.
-dfold :: Proxy f -> (forall k. Nat k -> a -> Apply f k -> Apply f ('S k)) -> Vec n a -> Apply f N0 -> Apply f n
-dfold _ _ VN z = z
-dfold p f (VC a v) z = f (size v) a (dfold p f v z)
+unfold :: Known n => (s -> (a, s)) -> s -> Vec n a
+unfold = unfoldN auto
 
 -- | @iterateN n f x@ returns a vector of size @n@ of repeated applications of @f@ to @x@
 iterateN :: Nat n -> (a -> a) -> a -> Vec n a
@@ -157,8 +152,8 @@ iterateN NZ     _ _ = VN
 iterateN (NS n) f z = VC z (iterateN n f (f z))
 
 -- | @iterate f x@ returns a vector of repeated applications of @f@ to @x@, inferring the size from the type
-iterate :: KnownNat n => (a -> a) -> a -> Vec n a
-iterate = iterateN nat
+iterate :: Known n => (a -> a) -> a -> Vec n a
+iterate = iterateN auto
 
 -- | @linspace x y n@ returns a vector of @n@ points uniformly spaced in the interval @[x, y)@.
 linspace :: Fractional a => a -> a -> Nat n -> Vec n a

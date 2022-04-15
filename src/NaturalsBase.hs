@@ -1,7 +1,6 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Natural numbers, basic operations, conversion functions, and other similar singletons
 module NaturalsBase where
-
-import Data.Constraint
 
 import SingBase
 
@@ -28,51 +27,47 @@ data Fin n where
     FZ :: Fin ('S n)
     FS :: Fin ('S n) -> Fin ('S ('S n))
 
+data SFin :: forall n. N -> Fin n -> * where
+    SFZ :: SFin ('S n) 'FZ
+    SFS :: SFin ('S n) i -> SFin ('S ('S n)) ('FS i)
+
+deriving instance Ord (Fin n) 
+
 -- | The singleton type for boolean.
 data Boolean b where
     BT :: Boolean 'True
     BF :: Boolean 'False
 
--- * Classes
-
--- | This class associates singleton values to type-level naturals.
--- Note that, unintuitively, @KnownNat n@ not hold universally for @n :: N@, (barring type reflection).
--- However, @KnownNat@ will hold for any concrete type, which is why we (I) refer to those @n@ with @KnownNat n@ as "constructible".
-class KnownNat n where
-    -- but also note that type reflection would not help either
-    -- as in that case we again have to carry around @Typeable@
-
-    -- Given doesn't work well: it makes instance constraints as large as instance heads, making some (all) undecidable
-    nat :: Nat n
-
--- these instances ensure that any concrete @n@ has @KnownNat n@
-instance KnownNat 'Z where
-    nat = NZ
-
-instance KnownNat n => KnownNat ('S n) where
-    nat = NS nat
-
--- | The class of known lists of naturals.
--- The empty list is always known, and if @n@ and @ns@ are known, then so is @n ': ns@.
-class KnownNatList ns where
-    nats :: TList Nat ns
-
-instance KnownNatList '[] where
-    nats = XNil
-
-instance (KnownNat n, KnownNatList ns) => KnownNatList (n ': ns) where
-    nats = XCons nat nats
-
-{-
-getNat :: (KnownNatList ns, Elem n ns ~ 'True) => SList ns -> Nat n
-getNat = _
--}
-
-
 -- * Instances
 
-type instance Sing = Nat
-type instance Sing = Boolean
+instance Known 'Z where
+    auto = NZ
+
+instance Known n => Known ('S n) where
+    auto = NS auto
+
+instance Known 'FZ where
+    auto = SFZ
+
+instance Known i => Known ('FS i) where
+    auto = SFS auto
+
+instance Known 'True where
+    auto = BT
+
+instance Known 'False where
+    auto = BF
+
+type instance Sing x = Nat x
+type instance Sing x = Boolean x
+type instance Sing (i :: Fin n) = SFin n i
+
+
+instance SingKind (Fin n) where
+    type Demote (Fin n) = Fin n
+
+    fromSing SFZ = FZ
+    fromSing (SFS i) = FS $ fromSing i
 
 instance SingKind Bool where
     type Demote Bool = Bool
@@ -83,7 +78,7 @@ instance SingKind Bool where
 instance Show (Nat n) where
     show n = "Nat " ++ show (toInt n)
 
-instance KnownNat n => Show (Fin n) where
+instance Known n => Show (Fin n) where
     show f = "Fin " ++ show x ++ "/" ++ show y where
         (x, y) = finToTup f
 
@@ -163,14 +158,14 @@ toInt NZ = 0
 toInt (NS n) = 1 + toInt n
 
 -- | Return the size of the set this @Fin@ is from
-finSize :: KnownNat n => Fin n -> Nat n
-finSize _ = nat
+finSize :: Known n => Fin n -> Nat n
+finSize _ = auto
 
 {- |
     Return the index and size of a @Fin@. 
 
     For example, @FS (FS FZ) :: Fin ('S ('S ('S ('S 'Z))))@ would become @(1, 4)@, indicating that it points to the 2nd element of a set of 4 elements. -}
-finToTup :: KnownNat n => Fin n -> (Int, Int)
+finToTup :: Known n => Fin n -> (Int, Int)
 finToTup f = (finToInt f, toInt $ finSize f)
 
 finToInt :: Fin n -> Int
@@ -191,26 +186,3 @@ toFZ _ = FZ
 toFS :: Nat n -> Fin ('S n)
 toFS NZ     = FZ
 toFS (NS n) = FS $ toFS n
-
-
--- | If we have a singleton @Nat n@, then @n@ is constructible
-know :: Nat n -> Dict (KnownNat n)
-know NZ     = Dict              -- KnownNat 'Z
-know (NS n) = Dict \\ know n    -- Apply KnownNat n => KnownNat ('S n) to KnownNat n
-
--- | If @'S n@ is constructible, then @n@ is constructible
-lower :: Dict (KnownNat ('S n)) -> Dict (KnownNat n)
-lower Dict = h nat where
-    -- first construct @s :: Nat ('S n)@,
-    -- then destruct it to get @t :: Nat n@,
-    -- which is sufficient to prove @KnownNat n@.
-    h :: Nat ('S n) -> Dict (KnownNat n)
-    h (NS n) = know n
--- we can use lower as follows
--- x \\ lower (Dict @(KnownNat n))
--- to promote some x :: KnownNat m => a with @n ~ 'S m@
--- to KnownNat n => a
-
--- note that we use type applications here, like @(KnownNat n)
--- in this case, this is syntactic sugar over writing @Dict :: Dict (KnownNat n)@
-
