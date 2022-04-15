@@ -74,8 +74,9 @@ toSparse sparseVal = go (enumFin auto)
 ------------------ Functions that show that sparse vectors could be useful ------------------------------
 
 -- | Dot product between two sparse vectors
-dot :: (Num a) => SpVec n a -> SpVec n a -> SpVec n a
-dot = liftA2 (*)
+dot :: forall n a. (Num a, Known n) => SpVec n a -> SpVec n a -> a
+dot x y = sV * (fromIntegral (toInt (auto :: Nat n) - Map.size d)) + sum (Map.elems d)
+    where (SpVec sV d) = liftA2 (*) x y
 
 
 
@@ -87,8 +88,6 @@ sparseVec1 = SpVec 5 $ fromList [(FZ, 2), (FS FZ, 8)]
 sparseVec2 :: SpVec N9 Int
 sparseVec2 = SpVec 3 $ fromList [(FS FZ, 6), (FS $ FS $ FS $ FS FZ, 4)]
 
-sparseVecDotExample :: SpVec N9 Int
-sparseVecDotExample = sparsify $ sparseVec1 `dot` sparseVec2
 
 svec1 :: SpVec 'Z Int
 svec1 = SpVec 3 empty
