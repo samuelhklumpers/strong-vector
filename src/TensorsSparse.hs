@@ -2,9 +2,9 @@ module TensorsSparse where
 
 import Data.Map (Map, findWithDefault, insert)
 import qualified Data.Map as Map
-import NaturalsBase ( Fin(..), Nat, finSize, N2, N3, toInt)
+import NaturalsBase ( Fin(..), Nat, N2, N3, toInt)
 import SingBase
-import TensorsBase (Tensor (TC), tabulateTN, getT)
+import TensorsBase (Tensor, getT, tabulateTN) 
 import Vectors (enumFin, toList)
 
 -- | Shorthand for a Map indexed by a TList Fin

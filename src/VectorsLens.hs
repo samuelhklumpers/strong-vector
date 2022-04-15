@@ -17,7 +17,6 @@ import Naturals
 import VectorsBase
 import TensorsBase
 import SingBase
-import Unsafe.Coerce (unsafeCoerce)
 
 
 -- | Extract the segment from @n@ until @n + m@ from @v@
