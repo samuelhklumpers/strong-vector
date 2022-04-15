@@ -1,7 +1,7 @@
-# NumHS
-Richard Koetschruyter - 6275079
-Esper van den Heuvel - 1378619
-Samuel Klumpers - 6057314
+# NumHs
+Richard Koetschruyter - 6275079 <br/>
+Esper van den Heuvel - 1378619 <br/>
+Samuel Klumpers - 6057314 <br/>
 
 Load the project into GHCI by running the following:
 ```
