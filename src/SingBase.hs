@@ -50,6 +50,11 @@ type instance Sing x = SList x
 -- | Specialized version of @XList@ for type constructors
 type TList tc = XList (TyCon tc)
 
+-- | Simple value of XList that only stores values
+data SymId :: * ~> *
+type instance Apply SymId x = x
+type List = XList SymId
+
 -- Ordering for Sparse Tensor
 deriving instance (forall x. Eq (tc x)) => Eq (TList tc ix)
 deriving instance (forall x. Ord (tc x)) => Ord (TList tc ix)

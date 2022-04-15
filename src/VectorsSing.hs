@@ -15,6 +15,12 @@ type TVec tc = XVec (TyCon tc)
  
 type instance Sing x = SVec x
 
+instance Known 'VN where
+    auto = XN
+
+instance (Known s, Known ss) => Known ('VC s ss) where
+    auto = XC auto auto
+
 -- | Convert from the list to the vector kind
 type family ToVec (xs :: [k]) :: Vec (Length xs) k where
     ToVec '[] = 'VN

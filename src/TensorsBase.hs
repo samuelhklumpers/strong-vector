@@ -29,6 +29,9 @@ data Tensor2 :: forall n. Vec n N -> * -> * where
     TZ2 :: a -> Tensor2 'VN a
     TC2 :: Vec n (Tensor2 ix a) -> Tensor2 ('VC n ix) a
 
+t2ToT :: Tensor2 ix a -> Tensor (FromVec ix) a
+t2ToT (TZ2 a) = TZ a
+t2ToT (TC2 v) = TC (t2ToT <$> v)
 
 -- * Families
 
@@ -59,6 +62,7 @@ type family VLength (xs :: Vec n k) :: N where
 
 -- * Instances
 deriving instance Eq a => Eq (Tensor ix a)
+deriving instance Eq a => Eq (Tensor2 ix a)
 
 -- | Internal @Tensor@ showing function.
 showT :: Show a => Nat (Length ix) -> Tensor ix a -> String
@@ -71,6 +75,9 @@ showT d@(NS d') (TC v) = let v' = fmap (showT d') v in
 
 instance (Show a, Known (Length ix)) => Show (Tensor ix a) where
     show = showT auto
+
+instance (Show a, Known (Length (FromVec ix))) => Show (Tensor2 ix a) where
+    show = showT auto . t2ToT
 
 instance Functor (Tensor ix) where
     fmap f (TZ a) = TZ (f a)
@@ -199,18 +206,3 @@ innerProd a b = sum $ directMul a b
 -- | Squared Frobenius norm, equivalently the dot product of a flattened tensor with itself. 
 squared :: Num a => Tensor ns a -> a
 squared a = innerProd a a
-
--- TODO fix
-{-
-matMul :: forall n m k a. (Known n, Known m, Known k, Num a) => Tensor '[n, m] a -> Tensor '[m, k] a -> Tensor '[n, k] a
-matMul (TC v) s = TC $ fmap h v where
-    s' :: Tensor '[k, m] a
-    s' = transpose' na0 na1 s
-
-    s'' :: Vec k (Tensor '[m] a)
-    s'' = case s' of
-        TC w -> w
-
-    h :: Tensor '[m] a -> Tensor '[k] a
-    h r = TC $ fmap (TZ . innerProd r) s''
--}
