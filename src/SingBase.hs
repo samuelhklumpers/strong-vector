@@ -67,7 +67,7 @@ type family Elem (x :: k) (xs :: [k]) :: Bool where
     Elem x (x ': _) = 'True
     Elem x (y ': v) = Elem x v
 
--- | Simple value of XList to only store values
+-- | Simple value of XList that only stores values
 data SymId :: * ~> *
 type instance Apply SymId x = x
-type HList = XList SymId
+type List = XList SymId
