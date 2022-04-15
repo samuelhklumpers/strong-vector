@@ -14,9 +14,10 @@ import Control.Applicative (liftA2)
 
 import SingBase
 
--- saved in a dictionary.
+-- | Sparse vector represented by a sparse value and a dictionary indexed by positions in vector
 data SpVec n a = SpVec a (Map (Fin n) a) deriving (Show)
 
+-- | Sparse vectors are equal if they represent the same vector
 instance (Eq a) => (Eq (SpVec n a)) where
     s1 == s2 = x1 == x2 && d1 == d2
         where (SpVec x1 d1) = sparsify s1
@@ -59,6 +60,7 @@ sparsify (SpVec sV d) = SpVec sV (Map.filter (/= sV) d)
 fromSparse :: Known n => SpVec n a -> Vec n a
 fromSparse sVec = generateN auto $ getS sVec
 
+-- | Turn a regular vector into a sparse representation using a specified sparse value
 toSparse :: forall a n . (Known n, Eq a) => a -> Vec n a -> SpVec n a
 toSparse sparseVal = go (enumFin auto)
        where go :: Eq a => Vec p (Fin n) -> Vec p a -> SpVec n a
@@ -70,22 +72,23 @@ toSparse sparseVal = go (enumFin auto)
 
 
 ------------------ Functions that show that sparse vectors could be useful ------------------------------
+
+-- | Dot product between two sparse vectors
+dot :: (Num a) => SpVec n a -> SpVec n a -> SpVec n a
+dot = liftA2 (*)
+
+
+
+------------------ Some vecs to play with in GHCI -------------------
+
 sparseVec1 :: SpVec N9 Int
 sparseVec1 = SpVec 5 $ fromList [(FZ, 2), (FS FZ, 8)]
 
 sparseVec2 :: SpVec N9 Int
 sparseVec2 = SpVec 3 $ fromList [(FS FZ, 6), (FS $ FS $ FS $ FS FZ, 4)]
 
--- | Dot product between two sparse vectors
-dot :: (Num a) => SpVec n a -> SpVec n a -> SpVec n a
-dot = liftA2 (*)
-
-sparseVecDot :: SpVec N9 Int
-sparseVecDot = sparsify $ sparseVec1 `dot` sparseVec2
-
-
-
------------------- Some vecs to play with in GHCI -------------------
+sparseVecDotExample :: SpVec N9 Int
+sparseVecDotExample = sparsify $ sparseVec1 `dot` sparseVec2
 
 svec1 :: SpVec 'Z Int
 svec1 = SpVec 3 empty

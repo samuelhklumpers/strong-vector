@@ -7,36 +7,47 @@ import SingBase
 import TensorsBase (Tensor (TC), tabulateTN, getT)
 import Vectors (enumFin, toList)
 
+-- | Shorthand for a Map indexed by a TList Fin
 data Map' ix a = Map (TList Fin ix) a
+-- | Sparse tensor represented by a sparse value and a dictionary indexed by a tensor position
 data STensor ix a = STensor a (Map (TList Fin ix) a)
 
+-- | Retrieve the value from the sparse tensor at the specified position
 getST :: STensor ix a -> TList Fin ix -> a
 getST (STensor sV m) ix = findWithDefault sV ix m
 
+-- | Insert a value into a sparse tensor at the specified position
 putST :: Eq a => STensor ix a -> TList Fin ix -> a -> STensor ix a
 putST sT@(STensor sV m) ix v | sV == v   = sT
                              | otherwise = STensor sV $ insert ix v m
 
+-- | Modify a value in a sparse tensor at the specified position
 modifyST :: Eq a => STensor ix a -> TList Fin ix -> (a -> a) -> STensor ix a
 modifyST sT@(STensor sV m) ix f | sV == newV = STensor sV $ Map.delete ix m
                                 | otherwise  = putST sT ix newV
                             where newV = f $ getST sT ix
 
+-- | Map a function over every value in a sparse tensor
 instance Functor (STensor n) where
     fmap f (STensor sV m) = STensor (f sV) (fmap f m) 
 
+-- | Remove all values from the dictionary that are equal to the sparse value of the sparse tensor
 sparsifyT :: Eq a => STensor ix a -> STensor ix a
 sparsifyT (STensor sV d) = STensor sV (Map.filter (/= sV) d)
 
+-- | Convert a sparse tensor into a regular tensor
 fromSparseT :: Known ix => STensor ix a -> Tensor ix a
 fromSparseT sTensor = tabulateTN auto $ getST sTensor
 
+-- | Convert a regular tensor into a sparse tensor with a specified sparse value
 toSparseT :: forall a ix . (Known ix, Eq a) => a -> Tensor ix a -> STensor ix a
 toSparseT sparseVal t = sparsifyT $ STensor sparseVal $ tabulateDict auto $ getT t
 
+-- | Given a list of indices and a function that maps these indices to values, tabulate these into a dictionary
 tabulateDict :: SList ix -> (TList Fin ix -> a) -> Map (TList Fin ix) a
 tabulateDict ns f = fmap f (Map.fromList $ [(x, x) | x <- enumList ns])
 
+-- | Convert a list of indices ix into a list of list of all inhabitants of Fin i for all i in ix
 enumList :: SList ix -> [TList Fin ix]
 enumList XNil         = [XNil]
 enumList (XCons n ns) = concatMap ((`fmap` enumList ns) . XCons) (enumFin n)
@@ -78,6 +89,9 @@ matMult (STensor sV mnMap) np@(STensor sV2 npMap) = STensor (sV * sV2) dnew
                   --  let b = (k, i) in mn (but skip if is in the dict. Only do if it is the sparse value)
                   --  add val * b to to (k, i) in output.
 
+-- | Helper for adding two 2-tuples elementwise
+tuplePlus :: (Num a, Num b) => (a, b) -> (a, b) -> (a, b)
+tuplePlus (a,b) (c,d) = (a + c, b + d)
 
 
 -- 2x3 matrix
@@ -94,10 +108,3 @@ aa = STensor 3 (Map.fromList [(XCons FZ (XCons FZ XNil), 1), (XCons (FS $ FS FZ)
 
 ab :: SMat N3 N2 Int
 ab = STensor 3 $ Map.fromList [(XCons FZ (XCons (FS $ FS FZ) XNil), 8), (XCons (FS FZ) (XCons FZ XNil), 3), (XCons FZ (XCons FZ XNil), 2), (XCons FZ (XCons (FS FZ) XNil), 1)]
-
-
-
-
--- | Helper for adding two 2-tuples elementwise
-tuplePlus :: (Num a, Num b) => (a, b) -> (a, b) -> (a, b)
-tuplePlus (a,b) (c,d) = (a + c, b + d)
