@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Database
       Matrix
       Naturals
       NaturalsBase
@@ -80,6 +81,7 @@ test-suite strong-vector-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      DatabaseTest
       Paths_strong_vector
   hs-source-dirs:
       test
