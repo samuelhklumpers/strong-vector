@@ -55,18 +55,40 @@ instance Show (Character c) where
     show SCA = "a"
     show SCB = "b"
     show SCC = "c"
+    show SCD = "d"
+    show SCE = "e"
+    show SCF = "f"
+    show SCG = "g"
+    show SCH = "h"
+    show SCI = "i"
+    show SCJ = "j"
+    show SCK = "k"
+    show SCL = "l"
+    show SCM = "m"
+    show SCN = "n"
+    show SCO = "o"
+    show SCP = "p"
+    show SCQ = "q"
+    show SCR = "r"
+    show SCS = "s"
+    show SCT = "t"
+    show SCU = "u"
+    show SCV = "v"
+    show SCW = "w"
+    show SCX = "x"
+    show SCY = "y"
+    show SCZ = "z"
 
 type STRING = TList Character
 
 data Table c r = Table (List c) (Tensor (Length c ': r ': '[]) String) deriving (Show)
 
+instance Show (List h) where
+  show _                   = ""
+
 instance Show (STRING s) where
     show XNil                    = ""
     show (XCons c cs)            = show c ++ show cs
-
-instance Show (List h) where
-  show XNil                   = ""
-  show (XCons x xs)           = ""
 
 data Header :: [C] -> N -> * where
   Header ::  Nat a -> Header n a deriving (Show)
@@ -115,7 +137,7 @@ emptyTable :: Table '[] 'Z
 emptyTable = Table XNil (enshape VN (XCons NZ $ XCons NZ XNil))
 
 -- | Select a column from a table by giving the index
-selectByIndex :: (Length c ~ 'S n, ((n - m) + 'S m) ~ 'S n) =>
+selectByIndex :: (((n + m) - m) ~ n, Length c ~ 'S (n + m)) =>
   Nat m -> Table c r -> Tensor '[r] String
 selectByIndex x (Table _ y) = getCol y $ toFin ((-|) (sizeT y) x) x
   where getCol :: Tensor (n ': r ': '[]) String -> Fin n -> Tensor (r ': '[]) String
@@ -124,7 +146,8 @@ selectByIndex x (Table _ y) = getCol y $ toFin ((-|) (sizeT y) x) x
 
 -- | Select a column from a table by giving the name of the column
 selectFromTable :: (Member s c (Nat (Lookup s c)) (Head s c),
- ((m - Lookup s c) + 'S (Lookup s c)) ~ 'S m, Length c ~ 'S m) =>
+ Length c ~ 'S (n + Lookup s c),
+ ((n + Lookup s c) - Lookup s c) ~ n) =>
   STRING s -> Table c r -> Tensor '[r] String
 selectFromTable colName t@(Table c _) = selectByIndex (select colName c) t
 
