@@ -81,8 +81,8 @@ test-suite strong-vector-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_strong_vector
       DatabaseTest
+      Paths_strong_vector
   hs-source-dirs:
       test
   default-extensions:

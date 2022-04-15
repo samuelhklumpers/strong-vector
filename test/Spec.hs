@@ -22,6 +22,7 @@ import Test.Hspec.QuickCheck
 import TensorsBase
 import TensorsSparse
 import DatabaseTest (dbTests)
+import Recursion
 
 
 instance Arbitrary (Vec 'Z a) where
@@ -75,9 +76,9 @@ propertyTestLaws (Laws className properties) =
 
 maskAssignTest :: Vec N4 Int
 maskAssignTest = runST $ do
-    v <- newSTRef $ full (1 :: Int) (nat :: Nat N4)
+    v <- newSTRef $ full (1 :: Int) (auto :: Nat N4)
 
-    let w = full (3 :: Int) (nat :: Nat N2)
+    let w = full (3 :: Int) (auto :: Nat N2)
     let m = XCons BF $ XCons BT $ XCons BF $ XCons BT XNil
 
     v & vAt FZ  .:= 2
@@ -105,7 +106,7 @@ sliceBuzz = runST $ do
     readSTRef v
 
 
-transposeTest :: Tensor '[N4, N3, N2] Int
+transposeTest :: Tensor2 ('VC N4 ('VC N3 ('VC N2 'VN))) Int
 transposeTest = runST $ do
     let x1 = (+1) . finToInt <$> enumFin na2
     let x2 = finToInt <$> enumFin na4
@@ -114,13 +115,17 @@ transposeTest = runST $ do
     let v1 = fmap (\n -> fromIntegral n * x2) x1
     let v2 = fmap (fmap (\n -> fromIntegral n * x3)) v1
 
-    let t1' = fmap (fmap (fmap TZ)) v2
-    let t2' = fmap (fmap TC) t1'
-    let t3' = fmap TC t2'
-    let t4 = TC t3'
+    let t1' = fmap (fmap (fmap TZ2)) v2
+    let t2' = fmap (fmap TC2) t1'
+    let t3' = fmap TC2 t2'
+    let t4 = TC2 t3'
 
-    let tt1 = transpose' na0 na2 t4
-    let tt2 = transpose' na0 na1 tt1
+    let i0 = SFZ
+    let i1 = SFS SFZ
+    let i2 = SFS $ SFS SFZ
+
+    let tt1 = transpose' i0 i2 t4
+    let tt2 = transpose' i0 i1 tt1
 
     return tt2
 
@@ -133,19 +138,6 @@ f2o3 :: Fin N3
 f0o3 = toFin na0 na2
 f1o3 = toFin na1 na1
 f2o3 = toFin na2 na0
-
-{-
-theHL :: HList '[N, N, N]
-theHL = XCons n0 $ XCons n1 $ XCons n2 HN
-theHL' :: HList '[Nat N0, Nat N1, Nat N2]
-theHL' = XCons na0 $ XCons na1 $ XCons na2 HN
-
-theIX :: FFin ('S ('S N1)) ('UpF '( '(), 'InF '()))
-theIX = FFS (FFZ @N1)
-
-theIX' :: FFin ('S ('S ('S n))) ('UpF '( '(), 'UpF '( '(), 'InF '())))
-theIX' = FFS (FFS FFZ)
--}
 
 fhl :: TList Fin '[N3, N3, N3]
 fhl = XCons f0o3 $ XCons f1o3 $ XCons f2o3 XNil
@@ -164,16 +156,16 @@ myTensor2 = TC $ fmap TZ (vec2 5 8)
 myTensor22 :: Tensor (N2 ': N2 ': '[]) Int  -- 2x2 tensor
 myTensor22 = TC (TC <$> VC (fmap TZ (vec2 1 2)) (VC (fmap TZ (vec2 3 4)) VN))
 
-myTensor12 :: Tensor (N1 ': N2 ': '[]) Int
-myTensor12 = TC (VC (TC (VC (TZ 0) (VC (TZ 1) VN))) VN)
+myTensor12 :: Tensor2 ('VC N1 ('VC N2 'VN)) Int
+myTensor12 = TC2 (VC (TC2 (VC (TZ2 0) (VC (TZ2 1) VN))) VN)
 
-myTensor21 :: Tensor (N2 ': N1 ': '[]) Int
-myTensor21 = TC (VC (TC (VC (TZ 0) VN)) (VC (TC (VC (TZ 1) VN)) VN))
+myTensor21 :: Tensor2 ('VC N2 ('VC N1 'VN)) Int
+myTensor21 = TC2 (VC (TC2 (VC (TZ2 0) VN)) (VC (TC2 (VC (TZ2 1) VN)) VN))
 
-myTranspose21 :: Tensor (N2 ': N1 ': '[]) Int
-myTranspose21 = transpose na0 na1 myTensor12
+myTranspose21 :: Tensor2 ('VC N2 ('VC N1 'VN)) Int
+myTranspose21 = transpose SFZ (SFS SFZ) myTensor12
 
-myReshape4 :: Tensor (N4 ': '[]) Int
+myReshape4 :: Tensor '[N4] Int
 myReshape4 = TC $ TZ <$> VC 1 (VC 2 $ VC 3 $ VC 4 VN)
 
 myShape22 :: SList '[ N2, N2]
@@ -202,13 +194,10 @@ unitTests = test [
         "reshape [1,2,3,4] [2,2] == [[1,2],[3,4]]"           ~: reshape myReshape4 myShape22 ~=? myTensor22,
         "flatten . reshape == flatten"                       ~: flatten (reshape myReshape4 myShape22) ~=? flatten myReshape4,
         "dfold double [2,3,1,3] == [2,2,3,3,1,1,3,3]"        ~: doubleFold ~=? doubleFoldRes,
-        --"[0,1,2][1] == 1 (but different)"                    ~: getH theHL theIX ~=? n1,
-        --"[0,1,2][1] == 1 (but different again)"              ~: getH theHL' theIX ~=? na1,
-        --"swap [0,1,2] 1 2 == [0,2,1]"                        ~: swapH fhl theIX theIX' ~=? fhl',
         "[0..5][[1,1,3]] == [1,1,3]"                         ~: multiGet enum6 mfs ~=? mfs
-        -- "split 2 3 [0..5] = [[0..2], [3..5]]" ~: split two three enum6 ~=? undefined
     ]
 
+{-
 sparseMatMulTest :: Int -> Int -> Tensor '[ N2, N3] Bool -> Tensor '[ N3, N4] Bool -> Tensor '[ N2, N3] Int -> Tensor '[ N3, N4] Int -> Bool
 sparseMatMulTest x y z z' a b = matMul a' b' == fromSparseT (matMult sb sa) where
     m = fmap asInt z
@@ -219,6 +208,7 @@ sparseMatMulTest x y z z' a b = matMul a' b' == fromSparseT (matMult sb sa) wher
     b' = (+y) <$> directMul m' b
     sa = toSparseT x a'
     sb = toSparseT y b'
+-}
 
 main :: IO ()
 main = do
@@ -237,8 +227,8 @@ main = do
             propertyTestLaws (foldableLaws (Proxy @Vec4)) *>
             propertyTestLaws (traversableLaws (Proxy @Vec4))
 
-        describe "Sparse" $
-            prop "sparseMul is matMul" sparseMatMulTest
+        --describe "Sparse" $
+        --    prop "sparseMul is matMul" sparseMatMulTest
 
 
 -- demos
@@ -270,5 +260,5 @@ demoMask = runST $ do
 demoEnshape :: Tensor '[N3, N2] Int
 demoEnshape = enshape (finToInt <$> enumFin auto) (XCons na3 $ XCons na2 XNil)
 
-demoTransp :: Tensor '[N2, N3] Int
-demoTransp = transpose' na0 na1 demoEnshape
+--demoTransp :: Tensor '[N2, N3] Int
+--demoTransp = transpose' na0 na1 demoEnshape
